@@ -116,6 +116,91 @@ cp -r skills/xiaoheihe-heybox ~/.agents/skills/
 skill 里写死了几条铁律，其中最重要的是：**发送前必须让你看过内容**，
 以及**标了强制人工的条目（投诉/交易/质疑是否 AI）agent 不许自己回**。
 
+## 迁移到新机器
+
+### 要带走的东西
+
+| 文件 | 含凭据 | 怎么处理 |
+|---|---|---|
+| 代码 | 否 | `git clone` |
+| `voice/profile.md` | 否（含个人风格设定） | 手动复制 |
+| `.env` | 否（只有偏好，不含 cookie） | 手动复制或重建 |
+| `.data/session.json` | **是，等于账号密码** | **不要带**，新机器重新扫码 |
+| `.data/xhh.db` | 否（互动历史与幂等记录） | 可选，带过去能保留已处理标记 |
+
+**凭据不要搬运。** `session.json` 里的 cookie 就是完整登录态，走聊天工具、U 盘、
+网盘传一遍就多一个泄露面。新机器上跑一次 `login` 扫个码，一分钟的事。
+
+### 安装
+
+Windows：
+
+```bash
+py -m venv .venv
+.venv\Scriptsctivate
+pip install -e ".[dev]"
+```
+
+macOS / Linux：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+> Windows 上必须用 `py`，**不要用 `python`** —— 那是 Microsoft Store 的假 shim，
+> 执行后什么都不做，也不报错。macOS / Linux 上则没有 `py` 这个命令。
+
+### 验证
+
+```bash
+xhh login        # 扫码
+xhh doctor       # 四项应全 OK
+xhh inbox -n 3   # 能看到消息就说明通了
+```
+
+如果提示 `xhh: command not found`，说明脚本装到了 Python 的 `Scripts/` 目录但没进 PATH。
+用模块路径代替：
+
+```bash
+py -m xhh_agent.cli.main doctor       # Windows
+python3 -m xhh_agent.cli.main doctor  # macOS / Linux
+```
+
+### 部署 skill
+
+```bash
+cp -r skills/xiaoheihe-heybox ~/.agents/skills/
+```
+
+### 已验证的依赖版本
+
+2026-10-28 在**全新虚拟环境**里验证通过（133 测试全绿）：
+
+| 包 | 版本 |
+|---|---|
+| aiohttp | 3.14.1 |
+| markdown | 3.11.2 |
+| pygments | 2.20.0 |
+| pillow | 12.2.0 |
+| qrcode | 8.2 |
+| requests | 2.34.2 |
+| pytest | 9.1.1 |
+| pytest-asyncio | 1.4.1 |
+
+`pyproject.toml` 里给的是区间（下界是验证过的最低版本，上界防大版本破坏）。
+装到区间外又出问题的话，优先按上表回退。
+
+### 平台差异
+
+| 项目 | Windows | macOS / Linux |
+|---|---|---|
+| Python 命令 | `py` | `python3` |
+| 打开二维码图片 | `os.startfile` | `open` / `xdg-open` |
+| 会话文件权限 | `chmod` 只影响只读位，实际依赖目录 ACL | `0600` 真实生效 |
+| 控制台编码 | 默认 GBK，CLI 已在入口强制 UTF-8 | 通常已是 UTF-8 |
+
 ## 目录结构
 
 ```
