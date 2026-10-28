@@ -17,6 +17,7 @@ from pathlib import Path
 from xhh_agent.cli.cmd_login import session_path
 from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
+from xhh_agent.content.plain import markdown_to_plain
 from xhh_agent.content.inline_images import replace_inline_images
 from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
@@ -58,17 +59,26 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     try:
         if html_path:
-            html = _read_source(html_path)
-            print(f"正文：直接读取 HTML（{len(html)} 字符）")
+            source_text = _read_source(html_path)
+            print(f"正文：直接读取文件（{len(source_text)} 字符）")
+            markdown_text = ""
         else:
             markdown_text = _read_source(md_path)
             print(f"正文：{md_path}（{len(markdown_text)} 字符 Markdown）")
-            html = markdown_to_heybox_html(markdown_text)
+            source_text = ""
+
+        # 普通动态是纯文本：HTML 标签会被原样显示出来（实测踩过）。
+        if markdown_text:
+            body_text = markdown_to_plain(markdown_text)
+            html = markdown_to_heybox_html(markdown_text)   # 仅用于本地预览
+        else:
+            body_text = source_text
+            html = source_text
     except FileNotFoundError as exc:
         print(f"参数错误：{exc}", file=sys.stderr)
         return EXIT_USAGE
 
-    if not html.strip():
+    if not body_text.strip():
         print("正文转换后为空，已取消。", file=sys.stderr)
         return EXIT_ERROR
 
@@ -78,7 +88,9 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         print(f"转换结果已保存：{preview}（可先用浏览器打开检查排版）")
 
     print(f"标题：{title}")
-    print(f"转换后 HTML：{len(html)} 字符" + ("，含图片" if "data:image/" in html else ""))
+    print(f"正文（纯文本）：{len(body_text)} 字符")
+    if "<" in body_text and ">" in body_text:
+        print("⚠ 正文里还有尖括号，动态会原样显示，检查是否漏了标签", file=sys.stderr)
 
     try:
         session = SessionStore(session_path(cfg)).load()
@@ -88,8 +100,10 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     client = ProtocolClient(session, cfg)
     try:
-        # 内嵌 base64 图会被服务端拒，必须先传图床换成 URL
-        if "data:image/" in html:
+        # 动态是纯文本，带不了图片；图片需要走文章模式或后续 block
+        if "data:image/" in body_text:
+            print("⚠ 动态不支持内嵌图片，图片会被丢掉", file=sys.stderr)
+        if False and "data:image/" in html:
             print("\n正在上传正文内嵌图片...", flush=True)
             try:
                 html, uploaded = await replace_inline_images(html, CosUploader(client))
@@ -117,7 +131,8 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
         result = await client.submit_post(
             title=title,
-            html=html,
+            content=body_text,
+            content_type="text",
             draft=draft,
             topic_ids=(str(topic),) if topic else (),
         )

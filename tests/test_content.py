@@ -63,3 +63,49 @@ def test_plain_text_with_special_chars_is_escaped():
     """正文里的尖括号不能变成真的 HTML 标签。"""
     out = markdown_to_heybox_html("比较 a < b 和 c > d")
     assert "&lt;" in out or "<b" not in out
+
+
+# ── 纯文本（普通动态用）────────────────────────────────────
+
+def test_plain_strips_markers_but_keeps_text():
+    from xhh_agent.content.plain import markdown_to_plain
+
+    out = markdown_to_plain("## 标题\n\n正文**加粗**和`代码`\n\n- 列表项")
+    assert "#" not in out
+    assert "**" not in out
+    assert "`" not in out
+    assert "标题" in out
+    assert "加粗" in out
+    assert "代码" in out
+
+
+def test_plain_has_no_html_tags():
+    """动态里出现任何标签都会原样显示，所以纯文本必须干净。"""
+    from xhh_agent.content.plain import markdown_to_plain
+
+    out = markdown_to_plain("## 标题\n\n段落一\n\n段落二")
+    assert "<" not in out and ">" not in out
+
+
+def test_plain_keeps_paragraph_breaks():
+    from xhh_agent.content.plain import markdown_to_plain
+
+    out = markdown_to_plain("第一段\n\n第二段")
+    assert "第一段" in out and "第二段" in out
+    assert "\n\n" in out
+
+
+def test_plain_table_becomes_readable_line():
+    from xhh_agent.content.plain import markdown_to_plain
+
+    out = markdown_to_plain("| a | b |\n|---|---|\n| 1 | 2 |")
+    assert "---" not in out
+    assert "a" in out and "b" in out and "1" in out
+
+
+def test_plain_code_block_keeps_content():
+    from xhh_agent.content.plain import markdown_to_plain
+
+    out = markdown_to_plain("```python\nprint(1)\n```")
+    assert "print(1)" in out
+    assert "```" not in out

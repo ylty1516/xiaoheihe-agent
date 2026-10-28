@@ -602,10 +602,11 @@ class ProtocolClient:
         self,
         *,
         title: str,
-        html: str,
+        content: str,
         draft: bool = True,
         topic_ids: tuple[str, ...] = (),
         desc: str = "",
+        content_type: str = "text",
     ) -> PostResult:
         """发帖或存草稿。
 
@@ -613,7 +614,7 @@ class ProtocolClient:
         P1 阶段默认走草稿——发布是不可逆动作，格式没验证前不该发到公开区。
         """
         clean_title = str(title or "").strip()
-        clean_html = str(html or "").strip()
+        clean_html = str(content or "").strip()
         if not clean_title:
             raise ValueError("帖子标题为空")
         if not clean_html:
@@ -623,10 +624,11 @@ class ProtocolClient:
 
         topics = [str(t).strip() for t in topic_ids if str(t).strip()]
 
-        # 正文以 block 数组提交。**type 必须是 "text"**：用 "html" 时
-        # 正式发布会回"错误的帖子类型#0001"（草稿模式不报错，所以只在真发时暴露）。
-        # 实测过的唯一可行组合：post_type=1 + link_tag=27 + topic_ids + type=text
-        blocks = [{"type": "text", "text": clean_html}]
+        # 正文以 block 数组提交。
+        # **普通动态(type=text)是纯文本**：塞 HTML 会把标签原样显示出来。
+        # 富文本只有文章(post_type=2)支持，但它需要封面图和创作计划。
+        # 所以 content_type 默认 text，调用方负责把 Markdown 压成纯文本。
+        blocks = [{"type": content_type, "text": clean_html}]
         # post_type=1（普通动态）的字段集。
         # declaration / original / words_count / extra_declaration 是**文章**
         # （post_type=2）才需要的；把它们塞进普通动态，正式发布会回
