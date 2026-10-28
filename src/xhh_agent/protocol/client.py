@@ -65,6 +65,11 @@ COMMENT_CREATE_PATH = "/bbs/app/comment/create"
 LINK_TREE_PATH = "/bbs/app/link/tree"
 FEEDS_PATH = "/bbs/app/feeds"
 TOPIC_SEARCH_PATH = "/bbs/app/api/post_editor/topic_selection/search"
+SEARCH_WELCOME_PATH = "/bbs/app/api/search/welcome_page/v2"
+
+#: 热搜榜在 welcome_page 返回的 Lists 里，head_text 等于这个值的那一组。
+HOT_GROUP_TITLE = "黑盒热议"
+
 LINK_DELETE_PATH = "/bbs/app/link/delete"
 LINK_CHANGE_STATUS_PATH = "/bbs/app/link/change/status"
 
@@ -426,6 +431,45 @@ class ProtocolClient:
                 except (TypeError, ValueError):
                     return None
         return None
+
+    async def fetch_hot_topics(self, *, limit: int = 5) -> list[dict[str, Any]]:
+        """取热搜榜（「黑盒热议」组）的前 N 条。
+
+        接口返回 result.Lists 是若干组（热门游戏 / 黑盒热议 / 小程序…），
+        只取 head_text == "黑盒热议" 那一组。写帖前应该先看这个喵。
+        """
+        url = self.build_api_url(SEARCH_WELCOME_PATH, {"force_refresh": "false"})
+        data = await self._request_json("GET", url)
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        groups = result.get("Lists")
+        if not isinstance(groups, list):
+            raise SchemaChanged(f"{SEARCH_WELCOME_PATH} 响应里找不到 Lists")
+
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            if str(group.get("head_text") or "").strip() != HOT_GROUP_TITLE:
+                continue
+            items = group.get("items") if isinstance(group.get("items"), list) else []
+            topics: list[dict[str, Any]] = []
+            for index, item in enumerate(items[: max(1, limit)], start=1):
+                if not isinstance(item, dict):
+                    continue
+                text = str(item.get("text") or "").strip()
+                if not text:
+                    continue
+                topics.append(
+                    {
+                        "index": index,
+                        "text": text,
+                        "right_tag": str(item.get("right_tag") or ""),
+                    }
+                )
+            return topics
+
+        raise SchemaChanged(
+            f"{SEARCH_WELCOME_PATH} 里没有「{HOT_GROUP_TITLE}」这一组，接口可能已变更"
+        )
 
     async def search_topics(self, query: str) -> list[dict[str, Any]]:
         """搜话题（= 发帖时的"分区"）。参数名是 ``q`` 不是 keyword。"""

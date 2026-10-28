@@ -616,3 +616,40 @@ def fake_post_client_with_images() -> ProtocolClient:
     return _CapturingPostClientWithImages(
         Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
     )
+
+
+# ── 热搜榜夹具 ──────────────────────────────────────────────
+
+def _hot_payload() -> dict:
+    return {
+        "status": "ok",
+        "result": {
+            "Lists": [
+                {"head_text": "", "items": [{"text": "影之刃零", "index_color": "#f00"}]},
+                {
+                    "head_text": "黑盒热议",
+                    "items": [
+                        {"text": "AL 一号种子出局菲姐送头等舱", "right_tag": "热", "index_color": "#f00"},
+                        {"text": "梁其伟推荐影之刃零回退617.42驱动", "right_tag": "", "index_color": "#f60"},
+                        {"text": "T1艾克活动下架全额退款补至臻", "right_tag": "", "index_color": "#f60"},
+                        {"text": "小黑盒购影之刃零获永久头像框", "right_tag": "新", "index_color": "#f90"},
+                        {"text": "蜜雪冰城全面换用悦鲜活鲜奶", "right_tag": "", "index_color": "#f90"},
+                        {"text": "Epic高管批评Steam封闭生态", "right_tag": "", "index_color": "#999"},
+                    ],
+                },
+                {"head_text": "小程序", "items": [{"text": "喜加一"}]},
+            ]
+        },
+    }
+
+
+class _FakeHotClient(ProtocolClient):
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        return RawResponse(status=200, data=_hot_payload())
+
+
+@pytest.fixture
+def fake_hot_client() -> ProtocolClient:
+    return _FakeHotClient(
+        Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
+    )

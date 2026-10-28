@@ -74,6 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_del.add_argument("--draft", action="store_true", help="这是草稿（走下架接口）")
     p_del.add_argument("--yes", action="store_true", help="确认删除")
 
+    p_hot = sub.add_parser("hot", help="看热搜榜（黑盒热议）")
+    p_hot.add_argument("-n", "--limit", type=int, default=10, help="取前几条（默认 10）")
+
     p_study = sub.add_parser("study", help="逛帖学习：挑高质量帖子存素材（只读）")
     p_study.add_argument("-n", "--count", type=int, default=2, help="挑几篇（默认 2）")
     p_study.add_argument("--notes-dir", dest="notes_dir", default="notes/study")
@@ -122,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         "reply",
         "study",
         "delete",
+        "hot",
     ):
         from xhh_agent.config import load_config
 
@@ -151,6 +155,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_reply import reply_main as handler
         elif args.command == "study":
             from xhh_agent.cli.cmd_study import main as handler
+        elif args.command == "hot":
+            from xhh_agent.cli.cmd_hot import main as handler
         elif args.command == "delete":
             from xhh_agent.cli.cmd_delete import main as handler
         else:
