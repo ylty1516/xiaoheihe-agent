@@ -70,7 +70,7 @@ _UA = (
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
-_EXPIRED_RE = re.compile(r"登录|login|unauthorized|401", flags=re.I)
+_EXPIRED_RE = re.compile(r"登录|login|unauthorized|\b401\b", flags=re.I)
 
 
 @dataclass(frozen=True)
@@ -300,9 +300,13 @@ class ProtocolClient:
             )
 
         user = result.get("user") if isinstance(result.get("user"), dict) else {}
-        heybox_id = str(user.get("heybox_id") or self.heybox_id or "")
+        # 审查 I3：不能拿本地 session 的 heybox_id 拼一个"会话有效"的结论——那是自证。
+        heybox_id = str(user.get("heybox_id") or "") if user else ""
         if not heybox_id:
-            raise SchemaChanged(f"{WHOAMI_PATH} 响应中缺少 heybox_id，解析逻辑需更新")
+            raise SchemaChanged(
+                f"{WHOAMI_PATH} 响应中没有 user.heybox_id。这是接口结构变更，"
+                "不能据此判定会话有效。"
+            )
 
         level_info = user.get("level_info") if isinstance(user.get("level_info"), dict) else {}
         try:
@@ -316,10 +320,11 @@ class ProtocolClient:
             level=level,
         )
 
-    async def server_time(self) -> int:
-        """取服务端时间（HTTP ``Date`` 头），用于 doctor 检查本地时钟偏差。
+    async def server_time(self) -> int | None:
+        """取服务端时间（HTTP ``Date`` 头）。
 
-        拿不到时回退本地时间——此时 clock 检查实际失效，但不会误报失败。
+        拿不到就返回 ``None``，**绝不回退本地时间**：一个时间自检在测不到时
+        报 OK，比没有自检更糟——它会主动给用户一个错误的安心结论。
         """
         url = self.build_api_url(
             MESSAGE_PATH,
@@ -331,8 +336,8 @@ class ProtocolClient:
                 try:
                     return int(parsedate_to_datetime(value).timestamp())
                 except (TypeError, ValueError):
-                    break
-        return int(time.time())
+                    return None
+        return None
 
     # ── 收件箱（只读，P0 不回复任何内容）───────────────────
 
@@ -340,12 +345,39 @@ class ProtocolClient:
         """拉取三类消息：评论 / @提及 / 私信。
 
         自己的消息会被过滤掉——不回复自己是最低要求。
+
+        逐条解析失败的消息**不会静默消失**：会计入 ``dropped`` 并告警；
+        若全部解析失败（典型信号是接口字段改名），直接抛 ``SchemaChanged``。
+        否则调用方会看到 ``count: 0`` 和退出码 0，误以为“没人找我”。
         """
         items: list[InboxItem] = []
-        items.extend(await self._fetch_message_channel("", "comment", limit))
-        items.extend(await self._fetch_message_channel("16", "mention", limit))
-        items.extend(await self._fetch_direct_message_channel(limit))
-        return InboxPage(items=[item for item in items if item.sender_id != self.heybox_id])
+        dropped = 0
+
+        for channel, message_type in (("comment", ""), ("mention", "16")):
+            got, lost = await self._fetch_message_channel(message_type, channel, limit)
+            items.extend(got)
+            dropped += lost
+
+        got, lost = await self._fetch_direct_message_channel(limit)
+        items.extend(got)
+        dropped += lost
+
+        total = len(items) + dropped
+        if total and not items:
+            raise SchemaChanged(
+                f"{MESSAGE_PATH} 返回了 {total} 条消息，但全部因字段缺失无法解析。"
+                "这是接口结构变更，不是'没有未读'——请核对后更新解析逻辑。"
+            )
+        if dropped:
+            logger.warning(
+                "%d 条消息因字段缺失被跳过（接口可能已变更，建议跑 xhh doctor）",
+                dropped,
+            )
+
+        return InboxPage(
+            items=[item for item in items if item.sender_id != self.heybox_id],
+            dropped=dropped,
+        )
 
     async def _fetch_message_list(
         self, *, message_type: str, limit: int, list_type: str = "0"
@@ -373,20 +405,25 @@ class ProtocolClient:
 
     async def _fetch_message_channel(
         self, message_type: str, channel: str, limit: int
-    ) -> list[InboxItem]:
+    ) -> tuple[list[InboxItem], int]:
         items: list[InboxItem] = []
+        dropped = 0
         for message in await self._fetch_message_list(message_type=message_type, limit=limit):
             if channel == "comment" and str(
                 message.get("message_type") or ""
             ) not in COMMENT_MESSAGE_TYPES:
+                # 点赞/关注等非评论通知，不出现在评论区通道，也不算丢弃
                 continue
             item = self._to_comment_item(message, channel)
-            if item is not None:
+            if item is None:
+                dropped += 1
+            else:
                 items.append(item)
-        return items
+        return items, dropped
 
-    async def _fetch_direct_message_channel(self, limit: int) -> list[InboxItem]:
+    async def _fetch_direct_message_channel(self, limit: int) -> tuple[list[InboxItem], int]:
         items: list[InboxItem] = []
+        dropped = 0
         messages = await self._fetch_message_list(
             message_type="", limit=limit, list_type="2"
         )
@@ -394,9 +431,11 @@ class ProtocolClient:
             if str(message.get("entry") or "") != "message":
                 continue
             item = self._to_dm_item(message)
-            if item is not None:
+            if item is None:
+                dropped += 1
+            else:
                 items.append(item)
-        return items
+        return items, dropped
 
     def _to_comment_item(self, message: dict[str, Any], channel: str) -> InboxItem | None:
         link_id = _link_id_of(message)

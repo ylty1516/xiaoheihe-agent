@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
+from email.utils import format_datetime
 from pathlib import Path
 
 import pytest
@@ -30,7 +32,9 @@ def make_client(payload: dict, status: int = 200) -> ProtocolClient:
     )
 
     async def _raw_request(method: str, url: str, **kwargs):
-        return RawResponse(status=status, data=payload)
+        # 真实响应总带 Date 头，clock 检查依赖它
+        date_header = format_datetime(datetime.now(timezone.utc), usegmt=True)
+        return RawResponse(status=status, data=payload, headers=(("Date", date_header),))
 
     client._raw_request = _raw_request  # type: ignore[method-assign]
     return client
@@ -147,3 +151,45 @@ def fake_doctor_client() -> ProtocolClient:
 def fake_expired_client() -> ProtocolClient:
     """登录态失效的 client（doctor 测试用此名）。"""
     return make_client(load_fixture("login_expired.json"), status=401)
+
+
+# ── 审查修复轮夹具 ──────────────────────────────────────────
+
+
+def make_fixture_client(fixture_name: str, status: int = 200) -> ProtocolClient:
+    """所有请求都返回同一个 fixture 的 client。"""
+    return make_client(load_fixture(fixture_name), status=status)
+
+
+@pytest.fixture
+def fake_client_no_user() -> ProtocolClient:
+    return make_fixture_client("whoami_no_user.json")
+
+
+def _fixed(fixture_name: str) -> ProtocolClient:
+    return _FixedInboxClient(
+        fixture_name,
+        Session(cookie="cookie=secret", heybox_id="83709585"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_inbox_with_unparseable() -> ProtocolClient:
+    return _fixed("inbox_partial.json")
+
+
+@pytest.fixture
+def fake_inbox_all_broken() -> ProtocolClient:
+    return _fixed("inbox_unparseable.json")
+
+
+class _FixedInboxClient(ProtocolClient):
+    """三个通道都返回同一份 fixture（用于模拟字段改名）。"""
+
+    def __init__(self, fixture_name: str, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._fixture_name = fixture_name
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        return RawResponse(status=200, data=load_fixture(self._fixture_name))

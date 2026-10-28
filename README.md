@@ -75,6 +75,18 @@ py -m venv .venv
 pip install -e ".[dev]"
 ```
 
+## 凭据安全
+
+Cookie 等价于账号密码。因此：
+
+- 只存在 `.data/session.json`，不进环境变量、不进命令行参数、不进日志
+- 文件以 `0600` 创建（先创建后写入，不存在 0644 窗口）
+- `Session.__repr__` 不含 cookie，`Config` 里压根没有 cookie 字段
+
+**Windows 上的残余风险**：Windows 忽略 POSIX 权限位，`chmod` 只影响只读属性。
+`.data/session.json` 实际可被同机其他用户读取，安全性依赖目录 ACL。
+如果你的项目盘（如 `F:\`）不是 per-user ACL 的分区，请注意这一点。
+
 ## 风险声明
 
 本项目使用非公开接口，**违反平台用户协议的可能性很高**。可能的后果包括但不限于：

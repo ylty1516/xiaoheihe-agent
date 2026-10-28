@@ -43,3 +43,10 @@ def test_config_is_immutable():
     cfg = load_config()
     with pytest.raises(Exception):
         cfg.reply_mode = "auto"
+
+
+def test_config_has_no_cookie_field():
+    """审查 I5/I6：Cookie 只有一个来源（.data/session.json）。
+    Config 里留一份会把明文带进 repr/日志，且读它的代码并不存在。"""
+    cfg = load_config()
+    assert not hasattr(cfg, "cookie")

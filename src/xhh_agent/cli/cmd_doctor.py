@@ -32,6 +32,9 @@ class Check:
     name: str
     ok: bool
     detail: str = ""
+    #: 前序检查失败导致本项未执行。与"执行了但失败"必须区分开，
+    #: 否则时钟偏差会被报成"请重新登录"，用户会陷入扫码死循环。
+    skipped: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,7 @@ async def run_checks(client: ProtocolClient) -> DoctorReport:
     def skip_rest(start: str) -> None:
         start_at = _CHECK_ORDER.index(start)
         for name in _CHECK_ORDER[start_at:]:
-            checks.append(Check(name, False, "skipped：前序检查失败"))
+            checks.append(Check(name, False, "skipped：前序检查失败", skipped=True))
 
     # 1. 会话
     if not getattr(client.session, "cookie", ""):
@@ -65,6 +68,13 @@ async def run_checks(client: ProtocolClient) -> DoctorReport:
         checks.append(Check("clock", False, f"无法获取服务端时间：{type(exc).__name__}"))
         skip_rest("signature")
         return DoctorReport(checks)
+
+    if server_now is None:
+        # 拿不到服务端时间就不能声称时钟正常。报告"未验证"而不是报 OK。
+        checks.append(Check("clock", False, "未能取得服务端时间，此项未验证"))
+        skip_rest("signature")
+        return DoctorReport(checks)
+
     skew = abs(int(server_now) - int(time.time()))
     if skew > CLOCK_SKEW_TOLERANCE_SECONDS:
         checks.append(
@@ -112,7 +122,10 @@ async def doctor_main(client: ProtocolClient) -> int:
         print("\n自检通过。")
         return EXIT_OK
 
-    if any(c.name in ("session", "signature") and not c.ok for c in report.checks):
+    if any(
+        check.name in ("session", "signature") and not check.ok and not check.skipped
+        for check in report.checks
+    ):
         print("\n会话/签名不可用，请运行 'xhh login' 重新登录。", file=sys.stderr)
         return EXIT_LOGIN_EXPIRED
 

@@ -37,6 +37,9 @@ class InboxItem:
 class InboxPage:
     items: list[InboxItem] = field(default_factory=list)
     has_more: bool = False
+    #: 因为字段缺失而无法解析的消息数。不为 0 说明接口结构可能变了，
+    #: 必须让调用方看得见——静默丢弃会让人误以为"没人找我"。
+    dropped: int = 0
 
 
 @dataclass(frozen=True)

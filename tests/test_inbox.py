@@ -42,3 +42,18 @@ async def test_message_id_falls_back_when_missing(fake_inbox_client):
     ids = [i.message_id for i in page.items if i.channel == "comment"]
     assert len(ids) == 2
     assert ids[1] == "abc123:9002"
+
+
+async def test_dropped_messages_are_counted_not_silently_swallowed(fake_inbox_with_unparseable):
+    """审查 C1：字段改名导致的逐条解析失败必须被计数，
+    否则 `count: 0` + 退出码 0 会让 agent 汇报"没人找我"。"""
+    page = await fake_inbox_with_unparseable.fetch_inbox()
+    assert page.dropped > 0
+
+
+async def test_all_messages_unparseable_raises_schema_changed(fake_inbox_all_broken):
+    """所有消息都解析不出来，说明是接口结构变了，不是"没有未读"。"""
+    from xhh_agent.protocol.errors import SchemaChanged
+
+    with pytest.raises(SchemaChanged):
+        await fake_inbox_all_broken.fetch_inbox()

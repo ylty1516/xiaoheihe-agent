@@ -45,11 +45,15 @@ class SessionStore:
             "heybox_id": session.heybox_id,
             "device_id": session.device_id,
         }
-        self.path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        # 以 0600 直接创建，避免 write_text 之后、chmod 之前那段 0644 窗口。
+        # 注意：Windows 会忽略 mode 中的权限位（只影响只读属性），
+        # 因此 Windows 上仍需依赖目录 ACL，残余风险已写入 README。
+        fd = os.open(self.path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False))
         try:
             os.chmod(self.path, 0o600)
         except OSError:
-            # Windows 上 chmod 只影响只读位；保留调用以维持跨平台一致的意图。
             pass
 
     def load(self) -> Session:

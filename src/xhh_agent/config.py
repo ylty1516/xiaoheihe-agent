@@ -29,9 +29,13 @@ _FALSE = ("0", "false", "no", "off")
 
 @dataclass(frozen=True)
 class Config:
-    """不可变的运行期配置。构造后不允许修改。"""
+    """不可变的运行期配置。构造后不允许修改。
 
-    cookie: str
+    注意：这里**没有 cookie 字段**。Cookie 只有一个来源——``.data/session.json``
+    （由 :class:`~xhh_agent.protocol.session.SessionStore` 加载）。
+    在 Config 里留一份会把明文带进 repr/日志，而读它的代码并不存在。
+    """
+
     heybox_id: str
     draft_only: bool
     reply_mode: str
@@ -90,7 +94,6 @@ def _capped(env_name: str, hard_key: str) -> int:
 def load_config() -> Config:
     """从环境变量构造 Config。配置写错时抛 ValueError，绝不静默降级。"""
     return Config(
-        cookie=os.environ.get("XHH_COOKIE", "").strip(),
         heybox_id=os.environ.get("XHH_HEYBOX_ID", "").strip(),
         draft_only=_bool("XHH_DRAFT_ONLY", True),
         reply_mode=_choice("XHH_REPLY_MODE", "queue", _REPLY_MODES),

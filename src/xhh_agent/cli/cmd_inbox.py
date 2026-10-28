@@ -41,6 +41,12 @@ async def _run(cfg: Config, fmt: str, limit: int) -> int:
     finally:
         await client.close()
 
+    if page.dropped:
+        print(
+            f"警告：{page.dropped} 条消息因字段缺失被跳过，接口可能已变更（跑 'xhh doctor'）",
+            file=sys.stderr,
+        )
+
     if fmt == "table":
         print(f"{'时间':<14} {'通道':<8} {'发送者':<14} 内容")
         print("-" * 72)
@@ -55,6 +61,7 @@ async def _run(cfg: Config, fmt: str, limit: int) -> int:
                 {
                     "ok": True,
                     "count": len(page.items),
+                "dropped": page.dropped,
                     "items": [asdict(item) for item in page.items],
                 },
                 ensure_ascii=False,
