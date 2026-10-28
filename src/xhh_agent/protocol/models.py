@@ -31,6 +31,10 @@ class InboxItem:
     link_id: str | None = None
     reply_id: str | None = None
     root_id: str | None = None
+    #: 原帖标题。生成回复时必须带上——不知道帖子在聊什么就写不出针对性回答
+    link_title: str | None = None
+    #: 被回复的上文（对方在回谁的什么话）。判断语境用
+    replied_text: str | None = None
 
 
 @dataclass(frozen=True)

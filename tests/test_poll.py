@@ -111,3 +111,30 @@ async def test_per_post_limit_stops_queueing(store, cfg):
     report = await runner.run_once()
     assert report.queued == 0
     assert report.blocked
+
+
+async def test_queue_records_post_context(store, cfg):
+    """入队时必须把语境一起存下来，否则生成层看不到帖子在聊什么。"""
+    import json as _json
+
+    item = InboxItem(
+        channel="comment",
+        message_id="ctx1",
+        sender_id="222",
+        sender_name="某人",
+        text="3k去闲鱼随便挑一个光驱版啊",
+        timestamp=NOW - 60,
+        raw_message_type="1",
+        link_id="L1",
+        reply_id="r1",
+        root_id="r1",
+        link_title="为了买ps5玩gta6把刀碎了",
+        replied_text="光驱版和数字版怎么选",
+    )
+    runner = PollRunner(_FakeClient([item]), store, cfg, now=NOW)
+    await runner.run_once()
+
+    row = store.list_queue()[0]
+    incoming = _json.loads(row["incoming"])
+    assert incoming["link_title"] == "为了买ps5玩gta6把刀碎了"
+    assert incoming["replied_text"] == "光驱版和数字版怎么选"

@@ -112,3 +112,14 @@ async def test_send_dm_rejects_missing_target(fake_dm_client):
 async def test_send_dm_rejects_overlong_text(fake_dm_client):
     with pytest.raises(ValueError, match="过长"):
         await fake_dm_client.send_dm("84812994", "x" * 501)
+
+
+async def test_comment_item_carries_context(fake_inbox_client):
+    """生成回复需要语境：原帖标题 + 被回复的上文。
+
+    没有这两样，只能写出"闲鱼水深"这种套到哪都成立的废话。
+    """
+    page = await fake_inbox_client.fetch_inbox()
+    item = page.items[0]
+    assert item.link_title == "某游戏攻略"
+    assert item.replied_text == "光驱版和数字版你选哪个"

@@ -188,6 +188,19 @@ def _link_id_of(message: dict[str, Any]) -> str:
     return ""
 
 
+def _link_title_of(message: dict[str, Any]) -> str:
+    link = message.get("link") if isinstance(message.get("link"), dict) else {}
+    return str(link.get("title") or "").strip()
+
+
+def _message_text_of(message: dict[str, Any], keys: tuple[str, ...]) -> str:
+    for key in keys:
+        value = message.get(key)
+        if value:
+            return _strip_html(str(value))
+    return ""
+
+
 def _message_text(message: dict[str, Any]) -> str:
     for key in ("comment_a_text", "comment_text", "msg", "text", "content"):
         value = message.get(key)
@@ -782,6 +795,8 @@ class ProtocolClient:
             link_id=link_id,
             reply_id=reply_id,
             root_id=reply_id,
+            link_title=_link_title_of(message),
+            replied_text=_message_text_of(message, ("comment_b_text",)),
         )
 
     def _to_dm_item(self, message: dict[str, Any]) -> InboxItem | None:

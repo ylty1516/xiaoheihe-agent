@@ -117,6 +117,8 @@ class PollRunner:
                             "message_id": item.message_id,
                             "text": item.text,
                             "link_id": item.link_id,
+                            "link_title": item.link_title or "",
+                            "replied_text": item.replied_text or "",
                             "reply_id": item.reply_id,
                             "root_id": item.root_id,
                             "sender_name": item.sender_name,
