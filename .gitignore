@@ -1,0 +1,42 @@
+# ── 凭据：绝对不能进仓库 ──────────────────────────
+# Cookie 等价于账号密码，泄露即等于账号被接管
+.env
+*.cookie
+cookies.json
+cookie.txt
+.data/
+secrets/
+
+# ── 运行期状态 ────────────────────────────────────
+# 幂等去重表、审核队列、已发送记录都在这里
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite3
+logs/
+*.log
+
+# ── Python ───────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ── 素材与产出 ────────────────────────────────────
+out/
+tmp/
+*.tmp
+
+# ── 编辑器 ───────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
