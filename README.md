@@ -137,7 +137,7 @@ Windows：
 
 ```bash
 py -m venv .venv
-.venv\Scriptsctivate
+.venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
