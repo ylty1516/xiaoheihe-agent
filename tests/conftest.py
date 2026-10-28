@@ -323,3 +323,47 @@ def fake_cos_client() -> _FakeCosClient:
 @pytest.fixture
 def fake_cos_client_no_url() -> _FakeCosClient:
     return _FakeCosClient({"preview_urls": [], "thumbs": []})
+
+
+# ── 帖子归属 / 回评论夹具 ───────────────────────────────────
+
+def _link_tree_payload(owner: str) -> dict:
+    return {
+        "status": "ok",
+        "result": {"link": {"linkid": "x", "user": {"userid": owner, "username": "someone"}}},
+    }
+
+
+@pytest.fixture
+def fake_link_client() -> ProtocolClient:
+    return make_client(_link_tree_payload("83709585"))
+
+
+@pytest.fixture
+def fake_link_client_other() -> ProtocolClient:
+    return make_client(_link_tree_payload("47762033"))
+
+
+@pytest.fixture
+def fake_link_client_broken() -> ProtocolClient:
+    return make_client({"status": "ok", "result": {}})
+
+
+class _CapturingReplyClient(ProtocolClient):
+    def __init__(self, payload: dict, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._payload = payload
+        self.captured: list[tuple] = []
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        self.captured.append((method, url, kwargs))
+        return RawResponse(status=200, data=self._payload)
+
+
+@pytest.fixture
+def fake_reply_client() -> ProtocolClient:
+    return _CapturingReplyClient(
+        {"status": "ok", "result": {"comment_id": "888"}},
+        Session(cookie="cookie=secret", heybox_id="85183285"),
+        load_config(),
+    )

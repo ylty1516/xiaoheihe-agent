@@ -12,12 +12,11 @@ def test_all_p0_commands_are_wired():
         assert exc_info.value.code == 0, f"{cmd} 未正确接线"
 
 
-def test_unimplemented_command_returns_2_not_crash():
-    """P2 的命令应明确提示未实现，而不是 AttributeError。
-
-    （draft/publish 已在 P1 实现，不能再拿它们当未实现样例。）
-    """
-    assert main(["poll", "--once"]) == 2
+def test_unknown_command_is_rejected():
+    """未知子命令应被 argparse 拒绝（退出码 2），而不是崩掉。"""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["nonexistent-command"])
+    assert exc_info.value.code == 2
 
 
 class _FakeStream:

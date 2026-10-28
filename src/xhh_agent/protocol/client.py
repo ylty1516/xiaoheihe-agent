@@ -59,6 +59,8 @@ QR_STATE_PATH = "/account/qr_state/"
 MESSAGE_PATH = "/bbs/app/user/message"
 DIRECT_MESSAGE_PATH = "/chatroom/v2/msg/user"
 POST_PATH = "/bbs/app/api/link/post"
+COMMENT_CREATE_PATH = "/bbs/app/comment/create"
+LINK_TREE_PATH = "/bbs/app/link/tree"
 
 #: 草稿没有分区时服务端可能拒，上游塞这个默认分区。
 DEFAULT_TOPIC_ID = "58144"
@@ -69,6 +71,9 @@ LINK_TAG_ARTICLE = 11
 
 #: 私信正文长度上限。规格 §5.7：回复上限 200 字，这里留宽一点供人工使用。
 DM_MAX_LENGTH = 500
+
+#: 评论回复长度上限（规格 §5.7）。评论区不是发帖区，长篇大论不像人说话。
+REPLY_MAX_LENGTH = 200
 
 #: 评论类消息的 message_type。移植自上游 fetch_comment_messages。
 COMMENT_MESSAGE_TYPES = {"1", "2"}
@@ -379,6 +384,84 @@ class ProtocolClient:
                 except (TypeError, ValueError):
                     return None
         return None
+
+    async def fetch_link_owner(self, link_id: str) -> str:
+        """查帖子的作者 userid。用于判断"这是不是我自己的帖子"。"""
+        url = self.build_api_url(
+            LINK_TREE_PATH,
+            {
+                "h_src": "",
+                "link_id": str(link_id).strip(),
+                "is_first": "1",
+                "page": "1",
+                "index": "1",
+                "limit": "1",
+                "owner_only": "0",
+                "heybox_id": self.heybox_id,
+            },
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        link = result.get("link") if isinstance(result.get("link"), dict) else {}
+        user = link.get("user") if isinstance(link.get("user"), dict) else {}
+        owner = str(
+            user.get("userid") or user.get("heybox_id") or user.get("user_id") or ""
+        )
+        if not owner:
+            raise SchemaChanged(f"{LINK_TREE_PATH} 响应里找不到帖子作者，无法判断归属")
+        return owner
+
+    async def is_own_post(self, link_id: str) -> bool:
+        """是不是自己发的帖子。
+
+        查不到归属就返回 False —— 保守处理。去别人帖子下刷评论比漏回一条
+        严重得多，所以这里的失败方向必须是"不回"。
+        """
+        try:
+            return (await self.fetch_link_owner(link_id)) == self.heybox_id
+        except Exception:  # noqa: BLE001 - 任何失败都判定为"不是我的"
+            logger.debug("帖子归属查询失败，按『不是自己的帖子』处理：%s", link_id)
+            return False
+
+    async def reply_comment(
+        self,
+        *,
+        link_id: str,
+        reply_id: str,
+        root_id: str,
+        text: str,
+        image_urls: tuple[str, ...] = (),
+    ) -> SendResult:
+        """回复评论。``reply_id`` 是被回复的那条评论，``root_id`` 是楼层根。"""
+        content = str(text or "").strip()
+        if not content:
+            raise ValueError("评论内容为空，已取消")
+        if len(content) > REPLY_MAX_LENGTH:
+            raise ValueError(
+                f"评论内容过长（{len(content)} 字，上限 {REPLY_MAX_LENGTH}）"
+            )
+
+        body: dict[str, str] = {
+            "is_cy": "0",
+            "link_id": str(link_id).strip(),
+            "reply_id": str(reply_id).strip(),
+            "root_id": str(root_id or reply_id).strip(),
+            "text": content,
+        }
+        images = [str(u).strip() for u in image_urls if str(u).strip()]
+        if images:
+            body["imgs"] = ",".join(images)
+
+        url = self.build_api_url(COMMENT_CREATE_PATH, {"heybox_id": self.heybox_id})
+        data = await self._request_json(
+            "POST", url, data=urlencode(body), headers=self._form_headers()
+        )
+        if data.get("status") != "ok":
+            raise TransportError(f"评论发送失败：{_error_message(data, 'unknown')}")
+
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        ack_id = str(result.get("comment_id") or result.get("commentid") or "")
+        return SendResult(ok=True, ack_id=ack_id)
 
     async def _put_cos_object(
         self,

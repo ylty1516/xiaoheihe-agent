@@ -50,9 +50,9 @@ def build_parser() -> argparse.ArgumentParser:
                                 help="把转换结果另存一份，便于本地预览")
         parser_ref.add_argument("--yes", action="store_true", help="确认正式发布")
 
-    p_poll = sub.add_parser("poll", help="执行一轮轮询")
+    p_poll = sub.add_parser("poll", help="扫描自己帖子下的评论并放入待回复队列")
     p_poll.add_argument("--once", action="store_true", help="只跑一轮后退出")
-    p_poll.add_argument("--dry-run", action="store_true", help="不发送，只报告将要做什么")
+    p_poll.add_argument("-n", "--limit", type=int, default=20, help="每次拉取的消息条数")
 
     p_dm = sub.add_parser("dm", help="发一条私信（默认 dry-run）")
     p_dm.add_argument("--to", required=False, metavar="USER_ID", help="收件人 user_id")
@@ -60,8 +60,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_dm.add_argument("--send", action="store_true", help="真的发送（默认只打印）")
 
     p_q = sub.add_parser("queue", help="审核队列")
-    p_q.add_argument("action", choices=["list", "show", "approve", "edit", "reject"])
+    p_q.add_argument("action", choices=["list", "show", "approve", "reject"])
     p_q.add_argument("id", nargs="?", help="队列条目 id")
+
+    p_rep = sub.add_parser("reply", help="回复队列里的评论（默认 dry-run）")
+    p_rep.add_argument("--queue-id", dest="queue_id", type=int, required=True)
+    p_rep.add_argument("--text", required=False, help="回复内容")
+    p_rep.add_argument("--send", action="store_true", help="真的发送")
 
     return p
 
@@ -87,7 +92,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # 已实现的命令分派到这里（延迟导入，避免 CLI 启动就加载 aiohttp）
-    if args.command in ("login", "whoami", "doctor", "inbox", "dm", "draft", "publish"):
+    if args.command in (
+        "login",
+        "whoami",
+        "doctor",
+        "inbox",
+        "dm",
+        "draft",
+        "publish",
+        "poll",
+        "queue",
+        "reply",
+    ):
         from xhh_agent.config import load_config
 
         try:
@@ -108,6 +124,12 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_post import draft_main as handler
         elif args.command == "publish":
             from xhh_agent.cli.cmd_post import publish_main as handler
+        elif args.command == "poll":
+            from xhh_agent.cli.cmd_reply import poll_main as handler
+        elif args.command == "queue":
+            from xhh_agent.cli.cmd_reply import queue_main as handler
+        elif args.command == "reply":
+            from xhh_agent.cli.cmd_reply import reply_main as handler
         else:
             from xhh_agent.cli.cmd_inbox import main as handler
         return handler(args, cfg)
