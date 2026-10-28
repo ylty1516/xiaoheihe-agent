@@ -367,3 +367,56 @@ def fake_reply_client() -> ProtocolClient:
         Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
+
+
+# ── 私信历史夹具 ────────────────────────────────────────────
+
+class _FakeDmHistoryClient(ProtocolClient):
+    def __init__(self, payload: dict, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._payload = payload
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        return RawResponse(status=200, data=self._payload)
+
+
+def _dm_history_payload() -> dict:
+    return {
+        "status": "ok",
+        "result": {
+            "list": [
+                {
+                    "sender_id": 85183285,
+                    "content": "在不在",
+                    "msg_type": 6,
+                    "send_time": 1793171471267,
+                    "seq": "2115340585080733696",
+                },
+                {
+                    "sender_id": 84812994,
+                    "content": "在的，啥事",
+                    "msg_type": 6,
+                    "send_time": 1793171500000,
+                    "seq": "2115340585080733697",
+                },
+            ]
+        },
+    }
+
+
+@pytest.fixture
+def fake_dm_history_client() -> ProtocolClient:
+    return _FakeDmHistoryClient(
+        _dm_history_payload(),
+        Session(cookie="cookie=secret", heybox_id="85183285"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_dm_history_client_broken() -> ProtocolClient:
+    return _FakeDmHistoryClient(
+        {"status": "ok", "result": {}},
+        Session(cookie="cookie=secret", heybox_id="85183285"),
+        load_config(),
+    )

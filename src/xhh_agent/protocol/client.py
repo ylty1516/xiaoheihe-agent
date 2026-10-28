@@ -23,6 +23,7 @@ from xhh_agent.config import Config
 from .errors import LoginExpired, SchemaChanged, TransportError
 from .models import (
     Account,
+    DmMessage,
     InboxItem,
     InboxPage,
     PostResult,
@@ -397,6 +398,59 @@ class ProtocolClient:
                 except (TypeError, ValueError):
                     return None
         return None
+
+    async def fetch_dm_history(
+        self, to_user_id: str, *, limit: int = 20
+    ) -> list[DmMessage]:
+        """拉与某个用户的私信历史。
+
+        实测字段：``content``（不是 ``msg``）、``send_time``(毫秒)、``seq``。
+        结构变了就抛 SchemaChanged，不要静默返回空列表。
+        """
+        target = str(to_user_id or "").strip()
+        if not target:
+            raise ValueError("拉私信历史需要 user_id")
+        if not self.heybox_id:
+            raise ValueError("缺少 heybox_id，请先登录")
+
+        url = self.build_api_url(
+            DIRECT_MESSAGE_PATH,
+            {
+                "to_user_id": target,
+                "offset": "0",
+                "limit": str(max(1, min(int(limit or 20), 50))),
+                "heybox_id": self.heybox_id,
+            },
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result")
+        if not isinstance(result, dict) or not isinstance(result.get("list"), list):
+            raise SchemaChanged(
+                f"{DIRECT_MESSAGE_PATH} 响应缺 result.list，接口可能已变更"
+            )
+
+        messages: list[DmMessage] = []
+        for raw in result["list"]:
+            if not isinstance(raw, dict):
+                continue
+            try:
+                send_time = int(raw.get("send_time") or 0)
+            except (TypeError, ValueError):
+                raise SchemaChanged(f"私信 send_time 不是数字：{raw.get('send_time')!r}") from None
+            if send_time <= 0:
+                raise SchemaChanged("私信缺少 send_time")
+            sender = str(raw.get("sender_id") or "")
+            messages.append(
+                DmMessage(
+                    seq=str(raw.get("seq") or ""),
+                    sender_id=sender,
+                    content=str(raw.get("content") or ""),
+                    timestamp=int(send_time / 1000) if send_time > 100_000_000_000 else send_time,
+                    msg_type=int(raw.get("msg_type") or 0),
+                    is_mine=sender == self.heybox_id,
+                )
+            )
+        return messages
 
     async def fetch_link_owner(self, link_id: str) -> str:
         """查帖子的作者 userid。用于判断"这是不是我自己的帖子"。"""

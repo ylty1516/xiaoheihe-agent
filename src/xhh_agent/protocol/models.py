@@ -81,3 +81,19 @@ class PostResult:
     link_id: str = ""
     is_draft: bool = False
     message: str = ""
+
+
+@dataclass(frozen=True)
+class DmMessage:
+    """一条私信历史。
+
+    注意字段名和发送时不同：发出去用 ``msg``，查回来叫 ``content``；
+    ``send_time`` 是毫秒。``is_mine`` 用来区分谁说的。
+    """
+
+    seq: str
+    sender_id: str
+    content: str
+    timestamp: int
+    msg_type: int
+    is_mine: bool = False

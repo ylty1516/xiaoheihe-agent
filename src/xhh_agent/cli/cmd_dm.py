@@ -43,6 +43,42 @@ def _print_request(request) -> None:
     print("─────────────────────────────────────────")
 
 
+async def _history(cfg: Config, to_user_id: str, limit: int) -> int:
+    """看与某个人的私信历史。"""
+    try:
+        session = SessionStore(session_path(cfg)).load()
+    except LoginExpired as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_LOGIN_EXPIRED
+
+    client = ProtocolClient(session, cfg)
+    try:
+        messages = await client.fetch_dm_history(to_user_id, limit=limit)
+    except LoginExpired as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_LOGIN_EXPIRED
+    except XhhError as exc:
+        print(f"拉取失败：{exc}", file=sys.stderr)
+        return EXIT_ERROR
+    finally:
+        await client.close()
+
+    if not messages:
+        print("没有历史消息。")
+        return EXIT_OK
+
+    from datetime import datetime
+
+    print(f"与 user_id={to_user_id} 的最近 {len(messages)} 条：")
+    print("-" * 68)
+    for m in messages:
+        who = "我" if m.is_mine else to_user_id
+        stamp = datetime.fromtimestamp(m.timestamp).strftime("%m-%d %H:%M")
+        content = (m.content or "").replace(chr(10), " ")[:44]
+        print(f"{stamp}  {who:>10}  {content}")
+    return EXIT_OK
+
+
 async def _run(cfg: Config, to_user_id: str, text: str, do_send: bool) -> int:
     try:
         session = SessionStore(session_path(cfg)).load()
@@ -80,10 +116,13 @@ async def _run(cfg: Config, to_user_id: str, text: str, do_send: bool) -> int:
 
 
 def main(args: object, cfg: Config) -> int:
+    to_user_id = getattr(args, "to", "") or ""
+    if getattr(args, "history", False):
+        return asyncio.run(_history(cfg, to_user_id, int(getattr(args, "limit", 20) or 20)))
     return asyncio.run(
         _run(
             cfg,
-            getattr(args, "to", "") or "",
+            to_user_id,
             getattr(args, "text", "") or "",
             bool(getattr(args, "send", False)),
         )

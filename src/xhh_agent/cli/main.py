@@ -58,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_dm.add_argument("--to", required=False, metavar="USER_ID", help="收件人 user_id")
     p_dm.add_argument("--text", required=False, help="消息内容")
     p_dm.add_argument("--send", action="store_true", help="真的发送（默认只打印）")
+    p_dm.add_argument("--history", action="store_true", help="只看历史，不发消息")
+    p_dm.add_argument("-n", "--limit", type=int, default=20, help="历史条数")
 
     p_q = sub.add_parser("queue", help="审核队列")
     p_q.add_argument("action", choices=["list", "show", "approve", "reject"])
