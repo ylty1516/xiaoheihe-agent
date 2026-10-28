@@ -50,10 +50,14 @@ class PollRunner:
         *,
         now: int | None = None,
         inbox_limit: int = 20,
+        generator: object | None = None,
     ) -> None:
         self._client = client
         self._store = store
         self._config = config
+        #: 可选：入队时顺便生成草稿（定时任务用）。
+        #: 只生成**草稿**，绝不发送——人不在场时发送是禁忌。
+        self._generator = generator
         self._now = int(now if now is not None else time.time())
         self._inbox_limit = inbox_limit
         self._gate = Gate(store, config)
@@ -106,7 +110,15 @@ class PollRunner:
                 report.note(item.message_id, "已处理过")
                 continue
 
-            # 5) 入队等人（或等 agent）写回复
+            # 5) 入队。有生成器就先写一份草稿，人回来只需确认
+            draft = ""
+            if self._generator is not None and not decision.is_hard:
+                try:
+                    draft = await self._generator.generate(item)  # type: ignore[attr-defined]
+                except Exception as exc:  # noqa: BLE001 - 生成失败不丢评论
+                    logger.warning("生成草稿失败 %s: %s", item.message_id, exc)
+                    report.note(item.message_id, f"生成失败：{exc}")
+
             try:
                 self._store.enqueue(
                     channel="comment",
@@ -127,7 +139,7 @@ class PollRunner:
                         },
                         ensure_ascii=False,
                     ),
-                    draft_reply="必须人处理" if decision.is_hard else "",
+                    draft_reply="必须人处理" if decision.is_hard else draft,
                 )
                 report.queued += 1
             except Exception as exc:  # noqa: BLE001 - 队列写失败不该标记成已处理

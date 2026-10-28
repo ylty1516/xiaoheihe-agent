@@ -48,7 +48,23 @@ def _relogin() -> int:
 
 # ── poll ────────────────────────────────────────────────
 
-async def _poll(cfg: Config, limit: int) -> int:
+def _make_generator(cfg: Config):
+    """定时任务用：构造生成器。没有 key 就返回 None（只入队不生成）。"""
+    if not cfg.llm_api_key:
+        print(
+            "没有可用的模型 key（XHH_LLM_API_KEY / DEEPSEEK_API_KEY），"
+            "只会入队不会生成草稿喵。",
+            file=sys.stderr,
+        )
+        return None
+    return LlmReplyGenerator(
+        client=OpenAICompatClient(base_url=cfg.llm_base_url, api_key=cfg.llm_api_key),
+        profile_text=_load_profile(),
+        model=cfg.llm_model,
+    )
+
+
+async def _poll(cfg: Config, limit: int, generate_drafts: bool = False) -> int:
     try:
         session = SessionStore(session_path(cfg)).load()
     except LoginExpired as exc:
@@ -58,7 +74,9 @@ async def _poll(cfg: Config, limit: int) -> int:
     client = ProtocolClient(session, cfg)
     store = _store(cfg)
     try:
-        report = await PollRunner(client, store, cfg, inbox_limit=limit).run_once()
+        generator = _make_generator(cfg) if generate_drafts else None
+        runner = PollRunner(client, store, cfg, inbox_limit=limit, generator=generator)
+        report = await runner.run_once()
     except LoginExpired as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_LOGIN_EXPIRED
@@ -78,7 +96,13 @@ async def _poll(cfg: Config, limit: int) -> int:
 
 
 def poll_main(args: object, cfg: Config) -> int:
-    return asyncio.run(_poll(cfg, int(getattr(args, "limit", 20) or 20)))
+    return asyncio.run(
+        _poll(
+            cfg,
+            int(getattr(args, "limit", 20) or 20),
+            bool(getattr(args, "generate_drafts", False)),
+        )
+    )
 
 
 # ── queue ───────────────────────────────────────────────

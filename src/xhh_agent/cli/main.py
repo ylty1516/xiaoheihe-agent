@@ -53,6 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_poll = sub.add_parser("poll", help="扫描自己帖子下的评论并放入待回复队列")
     p_poll.add_argument("--once", action="store_true", help="只跑一轮后退出")
     p_poll.add_argument("-n", "--limit", type=int, default=20, help="每次拉取的消息条数")
+    p_poll.add_argument("--generate-drafts", dest="generate_drafts", action="store_true",
+                        help="顺便用模型生成回复草稿（不发送）")
 
     p_dm = sub.add_parser("dm", help="发一条私信（默认 dry-run）")
     p_dm.add_argument("--to", required=False, metavar="USER_ID", help="收件人 user_id")
