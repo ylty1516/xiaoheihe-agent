@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # 已实现的命令分派到这里（延迟导入，避免 CLI 启动就加载 aiohttp）
-    if args.command in ("login", "inbox"):
+    if args.command in ("login", "whoami", "doctor", "inbox"):
         from xhh_agent.config import load_config
 
         try:
@@ -91,6 +91,10 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "login":
             from xhh_agent.cli.cmd_login import main as handler
+        elif args.command == "whoami":
+            from xhh_agent.cli.cmd_whoami import main as handler
+        elif args.command == "doctor":
+            from xhh_agent.cli.cmd_doctor import main as handler
         else:
             from xhh_agent.cli.cmd_inbox import main as handler
         return handler(args, cfg)
