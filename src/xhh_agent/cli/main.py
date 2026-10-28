@@ -29,7 +29,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = p.add_subparsers(dest="command", metavar="<command>")
 
-    sub.add_parser("login", help="扫码登录并持久化会话")
+    p_login = sub.add_parser("login", help="扫码登录，或用 --cookie 粘贴浏览器 cookie")
+    p_login.add_argument(
+        "--cookie",
+        metavar="STRING",
+        default=None,
+        help="直接粘贴浏览器 cookie（等价账号密码）；写 '-' 则从标准输入读，避免落进 shell 历史",
+    )
+    p_login.add_argument(
+        "--heybox-id",
+        dest="heybox_id",
+        metavar="ID",
+        default=None,
+        help="cookie 里没有 user_heybox_id 时手工指定",
+    )
     sub.add_parser("whoami", help="验证会话是否有效")
     sub.add_parser("doctor", help="自检签名与接口连通性")
 

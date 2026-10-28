@@ -292,6 +292,41 @@ def _collect_login_cookie(set_cookies: tuple[str, ...], existing: str) -> str:
     return _cookie_header_from_values(filtered)
 
 
+def normalize_pasted_cookie(raw: str) -> str:
+    """把用户粘贴的 cookie 规范成白名单内的 ``Cookie:`` 头。
+
+    接受三种形态（都来自浏览器 DevTools 的常见复制结果）：
+
+    1. 完整头：``user_pkey=xxx; user_heybox_id=85183285``
+    2. 带前缀：``Cookie: user_pkey=xxx; ...``
+    3. 只有值：``MTc5MzE3...``（Application 面板里单条 cookie 的 Value 列）
+
+    只保留 :data:`LOGIN_COOKIE_NAMES` 里的字段。浏览器会带一堆统计和风控
+    cookie，照单全收反而让请求指纹和真实浏览器不一致，更容易被识别。
+
+    Raises:
+        ValueError: 内容为空，或解析不出 ``user_pkey``。
+    """
+    text = str(raw or "").strip()
+    if not text:
+        raise ValueError("cookie 内容为空")
+    text = re.sub(r"^(?i:cookie)\s*:\s*", "", text).strip()
+    # 没有等号说明对方只复制了 user_pkey 的值
+    if "=" not in text:
+        text = f"user_pkey={text}"
+    merged = _collect_login_cookie((), text)
+    if not _parse_cookie_value(merged, "user_pkey"):
+        raise ValueError("没从粘贴内容里解析出 user_pkey")
+    return merged
+
+
+def heybox_id_from_cookie(cookie_header: str) -> str:
+    """从 cookie 头里取账号 ID：``user_heybox_id`` 优先，兼容 ``heybox_id``。"""
+    return _parse_cookie_value(cookie_header, "user_heybox_id") or _parse_cookie_value(
+        cookie_header, "heybox_id"
+    )
+
+
 @dataclass(frozen=True)
 class DmRequest:
     """一条待发送的私信请求。``url`` 里带 hkey，打印时必须脱敏。"""
@@ -420,11 +455,14 @@ class ProtocolClient:
     # ── 接口 ────────────────────────────────────────────────
 
     async def whoami(self) -> Account:
-        """用消息接口验证会话有效。
+        """用消息接口验证会话可用（能拿到 ``result.messages``）。
 
         为什么不查"用户资料"接口：那个接口（``/bbs/web/profile/post/links``）
         实测返回 ``status=failed`` 且 result 为空，无法区分"会话失效"和"接口变了"。
         消息接口是本项目真正依赖的接口，能拉到数据才算有效——这是最实在的证据。
+
+        注意：本方法**不能**区分"登录态"和"游客态"——服务端对无效 cookie 也返回
+        ``status=ok`` + 空列表。需要区分时用 :meth:`probe_login_state`。
         """
         url = self.build_api_url(
             MESSAGE_PATH,
@@ -440,6 +478,30 @@ class ProtocolClient:
             )
 
         return Account(heybox_id=self.heybox_id, username="", level=0)
+
+    async def probe_login_state(self) -> bool:
+        """服务端是否把当前 cookie 当成登录用户。
+
+        是一次真实探测：服务端对**无效 cookie 也返回** ``status=ok`` + 空消息列表，
+        所以 ``whoami`` 无法区分登录态和游客态（实测）。两种响应唯一稳定的差异在
+        ``result.message_unread_num``：登录态是对象 ``{"award": n, "comment": n}``，
+        游客态是整数 ``0``。
+
+        判据本身依赖服务端结构，可能过时；但误判方向是「拒绝保存」而不是
+        「覆盖掉好会话」，所以宁可保守。
+
+        Returns:
+            True 登录态；False 游客态（cookie 无效）。
+        """
+        url = self.build_api_url(
+            MESSAGE_PATH,
+            {"message_type": "", "list_type": "0", "offset": "0", "limit": "1"},
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result")
+        if not isinstance(result, dict):
+            raise SchemaChanged(f"{MESSAGE_PATH} 响应缺少 result 对象，无法判定登录态")
+        return isinstance(result.get("message_unread_num"), dict)
 
     async def server_time(self) -> int | None:
         """取服务端时间（HTTP ``Date`` 头）。
