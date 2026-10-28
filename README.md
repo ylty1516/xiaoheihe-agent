@@ -10,15 +10,16 @@ xhh publish --md 稿子.md --title "标题" --tag 1 --yes
 
 ---
 
-## 截图
+## 效果
 
-<!-- 把 App 里的帖子截图放到 docs/images/ 后替换这里 -->
+用 `xhh publish` 发出来的帖子（App 实拍）：
 
-| 发的帖子 | 终端命令 |
-|---|---|
-| ![帖子](docs/images/post.png) | ![终端](docs/images/cli.png) |
+![帖子效果](docs/images/post.png)
 
-> 图还没放喵。放进去后把上面两行的路径对上就行。
+- 标题和话题（PC游戏）自动带上
+- 小标题、加粗正常渲染
+- 图片自动转存到小黑盒图床，不重复
+- 「喵~」结尾换行生效
 
 ---
 
