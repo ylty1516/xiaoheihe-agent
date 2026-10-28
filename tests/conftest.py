@@ -465,3 +465,34 @@ def fake_feed_client() -> _FakeFeedClient:
             {"linkid": 2, "title": "普通帖", "description": "长描述 " * 80, "up": 5, "comment_num": 1},
         ]
     )
+
+
+# ── 删除夹具 ────────────────────────────────────────────────
+
+class _CapturingDeleteClient(ProtocolClient):
+    def __init__(self, payload: dict, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._payload = payload
+        self.captured: list[tuple] = []
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        self.captured.append((method, url, kwargs))
+        return RawResponse(status=200, data=self._payload)
+
+
+@pytest.fixture
+def fake_delete_client() -> ProtocolClient:
+    return _CapturingDeleteClient(
+        {"status": "ok", "result": {}},
+        Session(cookie="cookie=secret", heybox_id="10000001"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_delete_client_fail() -> ProtocolClient:
+    return _CapturingDeleteClient(
+        {"status": "failed", "msg": "无权限删除"},
+        Session(cookie="cookie=secret", heybox_id="10000001"),
+        load_config(),
+    )

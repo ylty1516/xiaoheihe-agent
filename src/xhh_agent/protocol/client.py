@@ -65,6 +65,8 @@ COMMENT_CREATE_PATH = "/bbs/app/comment/create"
 LINK_TREE_PATH = "/bbs/app/link/tree"
 FEEDS_PATH = "/bbs/app/feeds"
 TOPIC_SEARCH_PATH = "/bbs/app/api/post_editor/topic_selection/search"
+LINK_DELETE_PATH = "/bbs/app/link/delete"
+LINK_CHANGE_STATUS_PATH = "/bbs/app/link/change/status"
 
 #: 默认话题：PC游戏。实测有效，发帖必须有话题否则回"请添加分区"。
 DEFAULT_TOPIC_IDS = ("1",)
@@ -570,6 +572,33 @@ class ProtocolClient:
                 )
             )
         return messages
+
+    async def delete_link(self, link_id: str) -> SendResult:
+        """删除一条已发布的帖子。**不可逆**。"""
+        target = str(link_id or "").strip()
+        if not target:
+            raise ValueError("缺少 link_id")
+        url = self.build_api_url(LINK_DELETE_PATH, {"heybox_id": self.heybox_id})
+        data = await self._request_json(
+            "POST", url, data=urlencode({"link_id": target}), headers=self._form_headers()
+        )
+        if data.get("status") != "ok":
+            raise TransportError(f"删除帖子失败：{_error_message(data, 'unknown')}")
+        return SendResult(ok=True)
+
+    async def change_link_status(self, link_id: str, *, status: int = 0) -> SendResult:
+        """改帖子状态。``status=0`` 用于删草稿或下架已发布内容。"""
+        target = str(link_id or "").strip()
+        if not target:
+            raise ValueError("缺少 link_id")
+        url = self.build_api_url(
+            LINK_CHANGE_STATUS_PATH,
+            {"heybox_id": self.heybox_id, "link_id": target, "status": str(int(status))},
+        )
+        data = await self._request_json("GET", url)
+        if data.get("status") != "ok":
+            raise TransportError(f"修改帖子状态失败：{_error_message(data, 'unknown')}")
+        return SendResult(ok=True)
 
     async def fetch_link_owner(self, link_id: str) -> str:
         """查帖子的作者 userid。用于判断"这是不是我自己的帖子"。"""

@@ -108,6 +108,24 @@ py -m xhh_agent.cli.main publish --md 稿子.md --title "标题" --yes
 
 代码块和表格会自动转成图片并上传图床，这一步会花几秒。转换失败会中止，不会发出残缺帖子。
 
+## 工作流 B2：删除
+
+**不可逆操作**。默认 dry-run，先确认删的是哪条。
+
+```bash
+py -m xhh_agent.cli.main delete --link-id <id> --draft --yes   # 删草稿
+py -m xhh_agent.cli.main delete --link-id <id> --yes           # 删已发布帖子
+```
+
+删除权限的边界：
+
+- **自己造出来的测试内容**（调试时的草稿、排错时发的帖）→ 可以自主删
+- **用户实际发的内容** → 必须先问，不能自己判断"这条没用"
+- 删之前一定先跑 dry-run 看清标题，删错没法恢复
+
+草稿的 link_id 从 `xhh` 的草稿列表拿（`/bbs/app/link/drafts`）；
+已发布帖子的 id 从帖子链接里取（`xiaoheihe.cn/app/bbs/link/<id>`）。
+
 ## 工作流 C：私信
 
 ```bash
