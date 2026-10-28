@@ -5,23 +5,42 @@ P0 阶段**不包含任何发送能力**——没有 ``submit_*`` / ``reply_*`` 
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+import time
+from dataclasses import dataclass
+from http.cookies import SimpleCookie
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlparse
 
 import aiohttp
 
 from xhh_agent.config import Config
 
 from .errors import LoginExpired, SchemaChanged, TransportError
-from .models import Account
+from .models import Account, QrPollResult, QrTicket
 from .session import Session
 from .signer import create_signed_params
 
 logger = logging.getLogger(__name__)
 
 API_ORIGIN = "https://api.xiaoheihe.cn"
+WEB_ORIGIN = "https://www.xiaoheihe.cn"
+
+QRCODE_URL_PATH = "/account/get_qrcode_url/"
+QR_STATE_PATH = "/account/qr_state/"
+
+#: 登录需要保留的 cookie。移植自上游 LOGIN_COOKIE_NAMES。
+LOGIN_COOKIE_NAMES = {
+    "user_pkey",
+    "user_heybox_id",
+    "heybox_id",
+    "avatar",
+    "level",
+    "nickname",
+    "x_xhh_tokenid",
+}
 
 #: 用户资料入口。P0 只用它验证会话有效性。
 #: 注意：``username`` 为尽力而为解析，真实字段名需真机验收校正；
@@ -34,6 +53,19 @@ _UA = (
 )
 
 _EXPIRED_RE = re.compile(r"登录|login|unauthorized|401", flags=re.I)
+
+
+@dataclass(frozen=True)
+class RawResponse:
+    """一次 HTTP 响应的最小表示。
+
+    ``set_cookies`` 单独保存原始头：``dict(headers)`` 会把多个 ``Set-Cookie``
+    合并成一个，登录时会丢掉除第一条以外的所有 cookie。
+    """
+
+    status: int
+    data: Any
+    set_cookies: tuple[str, ...] = ()
 
 
 def is_login_expired(data: Any) -> bool:
@@ -52,6 +84,62 @@ def _error_message(data: Any, fallback: str) -> str:
             if value:
                 return str(value)
     return fallback
+
+
+def _parse_cookie_value(cookie_header: str, name: str) -> str:
+    parsed = SimpleCookie()
+    try:
+        parsed.load(str(cookie_header or ""))
+    except Exception:
+        return ""
+    morsel = parsed.get(name)
+    return morsel.value.strip() if morsel else ""
+
+
+def _cookie_header_from_values(values: dict[str, str]) -> str:
+    return "; ".join(f"{name}={value}" for name, value in values.items() if name and value)
+
+
+def _merge_cookie_headers(*headers: str) -> str:
+    values: dict[str, str] = {}
+    for header in headers:
+        parsed = SimpleCookie()
+        try:
+            parsed.load(str(header or ""))
+        except Exception:
+            continue
+        for name, morsel in parsed.items():
+            value = str(morsel.value or "")
+            if value:
+                values[name] = value
+    return _cookie_header_from_values(values)
+
+
+def _collect_login_cookie(set_cookies: tuple[str, ...], existing: str) -> str:
+    """从 Set-Cookie 头收集登录所需的 cookie。移植自上游行为。"""
+    values: dict[str, str] = {}
+    for header in set_cookies:
+        parsed = SimpleCookie()
+        try:
+            parsed.load(header)
+        except Exception:
+            continue
+        for name, morsel in parsed.items():
+            if name in LOGIN_COOKIE_NAMES and str(morsel.value or ""):
+                values[name] = morsel.value
+
+    merged = _merge_cookie_headers(existing, _cookie_header_from_values(values))
+
+    filtered: dict[str, str] = {}
+    parsed = SimpleCookie()
+    try:
+        parsed.load(merged)
+        for name, morsel in parsed.items():
+            if name in LOGIN_COOKIE_NAMES and str(morsel.value or ""):
+                filtered[name] = morsel.value
+    except Exception:
+        return merged
+    return _cookie_header_from_values(filtered)
 
 
 class ProtocolClient:
@@ -90,7 +178,7 @@ class ProtocolClient:
 
     async def _raw_request(
         self, method: str, url: str, **kwargs: Any
-    ) -> tuple[int, dict[str, str], Any]:
+    ) -> RawResponse:
         """唯一真正发出 HTTP 的入口。测试替换这个方法。"""
         http = await self._get_http()
         async with http.request(method, url, **kwargs) as response:
@@ -102,10 +190,15 @@ class ProtocolClient:
                     f"{method} {url.split('?')[0]} 返回非 JSON（HTTP {response.status}）"
                     f"：{text[:200]}"
                 ) from None
-            return response.status, dict(response.headers), data
+            return RawResponse(
+                status=response.status,
+                data=data,
+                set_cookies=tuple(response.headers.getall("Set-Cookie", [])),
+            )
 
     async def _request_json(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
-        status, _headers, data = await self._raw_request(method, url, **kwargs)
+        raw = await self._raw_request(method, url, **kwargs)
+        data, status = raw.data, raw.status
         path = url.split("?")[0]
         if is_login_expired(data) or status == 401:
             raise LoginExpired(f"{path} 提示登录态失效，请运行 'xhh login' 重新登录")
@@ -144,6 +237,99 @@ class ProtocolClient:
             username=str(user.get("username") or ""),
             level=level,
         )
+
+    def build_login_url(self, path: str, params: dict[str, Any] | None = None) -> str:
+        """登录接口不走签名，因此单独一个 URL 构造方法。"""
+        query = urlencode(params or {})
+        return f"{WEB_ORIGIN}{path}?{query}" if query else f"{WEB_ORIGIN}{path}"
+
+    async def request_qr_login(self) -> QrTicket:
+        url = self.build_login_url(QRCODE_URL_PATH, {"app": "web", "_notip": "true"})
+        data = await self._request_json("GET", url)
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        qr_url = str(result.get("qr_url") or "")
+        if not qr_url:
+            raise SchemaChanged(f"{QRCODE_URL_PATH} 未返回 qr_url，接口可能已变更")
+        qr_id = str(dict(parse_qsl(urlparse(qr_url).query)).get("qr") or "")
+        if not qr_id:
+            raise SchemaChanged(f"{QRCODE_URL_PATH} 返回的 qr_url 不含 qr 参数")
+        try:
+            expire = int(result.get("expire") or 120)
+        except (TypeError, ValueError):
+            expire = 120
+        return QrTicket(qr=qr_id, qr_url=qr_url, expire=expire)
+
+    async def poll_qr_login(self, qr: str) -> QrPollResult:
+        if not qr:
+            raise SchemaChanged("poll_qr_login 需要 qr 参数")
+        url = self.build_login_url(QR_STATE_PATH, {"qr": qr, "app": "web"})
+        raw = await self._raw_request("GET", url)
+        data = raw.data
+        if not isinstance(data, dict):
+            raise SchemaChanged(f"{QR_STATE_PATH} 返回结构变更：顶层不是对象")
+        if data.get("status") != "ok":
+            raise TransportError(
+                f"{QR_STATE_PATH} 请求失败：{_error_message(data, 'unknown')}"
+            )
+
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        state = str(result.get("error") or "wait")
+        message = str(result.get("error_msg") or "")
+
+        if state in {"wait", "ready"}:
+            return QrPollResult(status="pending", message=message)
+        if state in {"cancel", "canceled", "denied"}:
+            return QrPollResult(status="denied", message=message or "已取消")
+        if state in {"timeout", "expired"}:
+            return QrPollResult(status="expired", message=message or "二维码已过期")
+        if state != "ok":
+            return QrPollResult(status="error", message=message or f"未知状态: {state}")
+
+        cookie = _collect_login_cookie(raw.set_cookies, self.session.cookie)
+        heybox_id = (
+            str(result.get("heyboxid") or "")
+            or _parse_cookie_value(cookie, "heybox_id")
+            or _parse_cookie_value(cookie, "user_heybox_id")
+        )
+        if not cookie:
+            raise SchemaChanged("扫码成功但未收到登录 cookie，接口可能已变更")
+        if not heybox_id:
+            raise SchemaChanged("扫码成功但未拿到 heybox_id，接口可能已变更")
+
+        return QrPollResult(
+            status="ok",
+            session=Session(
+                cookie=cookie,
+                heybox_id=heybox_id,
+                device_id=self.session.device_id,
+            ),
+        )
+
+    async def login_and_save(
+        self,
+        store: Any,
+        *,
+        ticket: QrTicket | None = None,
+        interval_seconds: float = 1.5,
+        max_wait_seconds: float | None = None,
+    ) -> QrPollResult:
+        """完整扫码流程：取码 → 轮询 → 成功后落盘。
+
+        ``ticket`` 可传入已展示给用户的二维码，避免重复取码。
+        """
+        ticket = ticket or await self.request_qr_login()
+        deadline = time.monotonic() + (max_wait_seconds or float(ticket.expire))
+        while time.monotonic() < deadline:
+            result = await self.poll_qr_login(ticket.qr)
+            if result.status == "ok":
+                assert result.session is not None
+                store.save(result.session)
+                logger.info("登录成功，会话已保存（heybox_id=%s）", result.session.heybox_id)
+                return result
+            if result.status in {"denied", "expired", "error"}:
+                return result
+            await asyncio.sleep(interval_seconds)
+        return QrPollResult(status="expired", message="扫码超时")
 
     async def close(self) -> None:
         if self._http is not None and not self._http.closed:

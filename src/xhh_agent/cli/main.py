@@ -76,6 +76,18 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().print_help()
         return 0
 
+    # 已实现的命令分派到这里（延迟导入，避免 CLI 启动就加载 aiohttp）
+    if args.command == "login":
+        from xhh_agent.cli.cmd_login import main as login_main
+        from xhh_agent.config import load_config
+
+        try:
+            cfg = load_config()
+        except ValueError as exc:
+            print(f"配置错误：{exc}", file=sys.stderr)
+            return 2
+        return login_main(args, cfg)
+
     stage = _STAGES.get(args.command, "未规划")
     print(f"命令 `{args.command}` 属于 {stage}，尚未实现。", file=sys.stderr)
     print("设计规格：docs/superpowers/specs/2026-10-28-xiaoheihe-agent-design.md", file=sys.stderr)
