@@ -18,6 +18,8 @@ HARD_LIMITS: dict[str, int] = {
     "reply_per_hour": 5,
     "reply_per_day": 30,
     "dm_per_day": 10,
+    #: 每个帖子下最多回复几次。防止在同一个帖子里连续刷屏。
+    "reply_per_post": 5,
 }
 
 _REPLY_MODES = ("off", "queue", "auto")
@@ -45,6 +47,7 @@ class Config:
     max_posts_per_day: int
     max_replies_per_hour: int
     max_replies_per_day: int
+    max_replies_per_post: int
     max_dm_per_day: int
     db_path: str
     log_level: str
@@ -103,6 +106,7 @@ def load_config() -> Config:
         max_posts_per_day=_capped("XHH_MAX_POSTS_PER_DAY", "post_per_day"),
         max_replies_per_hour=_capped("XHH_MAX_REPLIES_PER_HOUR", "reply_per_hour"),
         max_replies_per_day=_capped("XHH_MAX_REPLIES_PER_DAY", "reply_per_day"),
+        max_replies_per_post=_capped("XHH_MAX_REPLIES_PER_POST", "reply_per_post"),
         max_dm_per_day=_capped("XHH_MAX_DM_PER_DAY", "dm_per_day"),
         db_path=os.environ.get("XHH_DB_PATH", ".data/xhh.db").strip(),
         log_level=os.environ.get("XHH_LOG_LEVEL", "INFO").strip().upper(),
