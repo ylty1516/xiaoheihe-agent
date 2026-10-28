@@ -485,9 +485,13 @@ class ProtocolClient:
         )
 
     def build_login_url(self, path: str, params: dict[str, Any] | None = None) -> str:
-        """登录接口不走签名，因此单独一个 URL 构造方法。"""
+        """登录接口的 URL。
+
+        与 :meth:`build_api_url` 的唯一差别是**不带签名参数**，
+        域名相同（``api.xiaoheihe.cn``）。写成 ``www.xiaoheihe.cn`` 会 404。
+        """
         query = urlencode(params or {})
-        return f"{WEB_ORIGIN}{path}?{query}" if query else f"{WEB_ORIGIN}{path}"
+        return f"{API_ORIGIN}{path}?{query}" if query else f"{API_ORIGIN}{path}"
 
     async def request_qr_login(self) -> QrTicket:
         url = self.build_login_url(QRCODE_URL_PATH, {"app": "web", "_notip": "true"})

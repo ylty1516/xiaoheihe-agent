@@ -27,3 +27,14 @@ async def test_login_saves_session_without_logging_cookie(fake_qr_client, tmp_pa
     assert result.status == "ok"
     assert store.load().cookie
     assert "hkey" not in caplog.text.lower()
+
+
+def test_login_url_uses_api_origin_not_web_origin(fake_qr_client):
+    """登录接口不签名，但域名和签名接口是同一个：api.xiaoheihe.cn。
+
+    写成 www.xiaoheihe.cn 会得到 404 page not found —— 这是实际踩过的 bug。
+    """
+    url = fake_qr_client.build_login_url("/account/get_qrcode_url/", {"app": "web"})
+    assert url.startswith("https://api.xiaoheihe.cn/"), url
+    assert "hkey" not in url
+    assert "nonce" not in url
