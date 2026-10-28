@@ -17,6 +17,9 @@ secrets/
 logs/
 *.log
 
+# 账号语气规格（含个人性格设定与观点，只保留 example）
+voice/profile.md
+
 # ── Python ───────────────────────────────────────
 __pycache__/
 *.py[cod]
