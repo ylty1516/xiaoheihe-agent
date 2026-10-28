@@ -496,3 +496,37 @@ def fake_delete_client_fail() -> ProtocolClient:
         Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
+
+
+class _MixedDeleteClient(ProtocolClient):
+    """link/tree 返回数字 id，delete 返回 ok。"""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.captured: list[tuple] = []
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        self.captured.append((method, url, kwargs))
+        if "link/tree" in url:
+            return RawResponse(
+                status=200,
+                data={
+                    "status": "ok",
+                    "result": {
+                        "link": {
+                            "linkid": 195232074,
+                            "title": "开个坑，随便聊聊游戏",
+                            "user": {"username": "me", "userid": "10000001"},
+                        }
+                    },
+                },
+            )
+        return RawResponse(status=200, data={"status": "ok", "result": {}})
+
+
+@pytest.fixture
+def fake_delete_client_mixed() -> ProtocolClient:
+    return _MixedDeleteClient(
+        Session(cookie="cookie=secret", heybox_id="10000001"),
+        load_config(),
+    )

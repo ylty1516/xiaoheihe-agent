@@ -574,10 +574,23 @@ class ProtocolClient:
         return messages
 
     async def delete_link(self, link_id: str) -> SendResult:
-        """删除一条已发布的帖子。**不可逆**。"""
+        """删除一条已发布的帖子。**不可逆**。
+
+        URL 里看到的 ``link_id`` 可能是 hex（如 ``5e8e72b8b427``），
+        但删除接口只认数字 id。直接传 hex 会回"帖子不存在"，
+        所以先查一次详情把数字 id 取出来。
+        """
         target = str(link_id or "").strip()
         if not target:
             raise ValueError("缺少 link_id")
+        if not target.isdigit():
+            detail = await self.fetch_post_detail(target)
+            numeric = str(detail.get("link_id") or "")
+            if not numeric.isdigit():
+                raise SchemaChanged(
+                    f"无法从 {target} 取到数字 link_id，删除接口需要数字 id"
+                )
+            target = numeric
         url = self.build_api_url(LINK_DELETE_PATH, {"heybox_id": self.heybox_id})
         data = await self._request_json(
             "POST", url, data=urlencode({"link_id": target}), headers=self._form_headers()
