@@ -38,3 +38,25 @@ def test_login_url_uses_api_origin_not_web_origin(fake_qr_client):
     assert url.startswith("https://api.xiaoheihe.cn/"), url
     assert "hkey" not in url
     assert "nonce" not in url
+
+
+def test_render_qr_creates_scannable_png(tmp_path):
+    """qr_url 是二维码内容而非网页，必须渲染成图片才能扫。"""
+    from xhh_agent.cli.qr_render import render_qr
+
+    path = render_qr(
+        "https://api.xiaoheihe.cn/account/qr_login/?qr=abc&app=web",
+        tmp_path / "qr.png",
+    )
+    assert path.exists()
+    assert path.stat().st_size > 500          # 不是空图
+    assert path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_cleanup_removes_qr_file(tmp_path):
+    from xhh_agent.cli.qr_render import cleanup, render_qr
+
+    path = render_qr("https://example.com/x", tmp_path / "q.png")
+    cleanup(path)
+    assert not path.exists()
+    cleanup(path)   # 重复调用不应抛异常

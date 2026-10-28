@@ -10,6 +10,7 @@ import asyncio
 import sys
 from pathlib import Path
 
+from xhh_agent.cli.qr_render import cleanup, render_qr, try_open_image
 from xhh_agent.config import Config
 from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import XhhError
@@ -29,10 +30,23 @@ async def _run(cfg: Config) -> int:
     store = SessionStore(session_path(cfg))
     try:
         ticket = await client.request_qr_login()
-        print(f"扫码地址：{ticket.qr_url}", flush=True)
-        print(f"有效期：{ticket.expire} 秒，扫码后自动完成", flush=True)
 
-        result = await client.login_and_save(store, ticket=ticket)
+        # qr_url 是二维码内容，不是网页。必须渲染成图片供 App 扫码，
+        # 直接把地址粘进浏览器会跳到"该功能需要登录使用"。
+        qr_path = render_qr(ticket.qr_url, session_path(cfg).parent / "login-qr.png")
+        print(f"二维码：{qr_path}")
+        print(f"有效期：{ticket.expire} 秒，扫码后自动完成")
+        print("请用【小黑盒 App】的「扫一扫」扫屏幕上的二维码。")
+        print("（请不要把二维码内容粘到浏览器：那里不是网页）")
+        if not try_open_image(qr_path):
+            print(f"自动打开失败，请手动打开上面的文件。", file=sys.stderr)
+        print("等待扫码...", flush=True)
+
+        try:
+            result = await client.login_and_save(store, ticket=ticket)
+        finally:
+            cleanup(qr_path)
+
         if result.status != "ok" or result.session is None:
             print(f"登录未完成：[{result.status}] {result.message}", file=sys.stderr)
             return EXIT_LOGIN_FAILED
