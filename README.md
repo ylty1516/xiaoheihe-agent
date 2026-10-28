@@ -99,6 +99,23 @@ xhh dm --to <user_id> --text "内容" --send  # 真发
 `xhh login` 会生成二维码图片并用系统看图程序打开 —— 用**小黑盒 App 扫一扫**扫屏幕。
 那个二维码内容**不是网页**，粘进浏览器只会跳到"该功能需要登录使用"。
 
+## 在 Pi / agent 里怎么用
+
+仓库里带了一份 Pi skill：`skills/xiaoheihe-heybox/SKILL.md`。
+
+```bash
+cp -r skills/xiaoheihe-heybox ~/.agents/skills/
+```
+
+装好之后可以直接跟 agent 说：
+
+- 「看看有没有新评论」→ 跑 `poll`、读队列、按语境写回复、dry-run 给你看
+- 「发个帖子，主题是 xxx」→ 写稿、存草稿、给你预览
+- 「给 xxx 发条私信」→ dry-run 确认后发送
+
+skill 里写死了几条铁律，其中最重要的是：**发送前必须让你看过内容**，
+以及**标了强制人工的条目（投诉/交易/质疑是否 AI）agent 不许自己回**。
+
 ## 目录结构
 
 ```
@@ -108,7 +125,8 @@ src/xhh_agent/
 ├── content/      排版层：Markdown → 小黑盒 HTML（P1）
 ├── automation/   编排层：轮询、幂等、闸门、回复决策（P2）
 ├── store/        状态层：SQLite 幂等表 / 审核队列 / 发送记录（P2）
-└── cli/          login · whoami · doctor · inbox · dm
+└── cli/          login · whoami · doctor · inbox · dm · draft · publish
+                  poll · queue · reply
 ```
 
 依赖方向严格单向：`cli → automation → {content, store}`，`protocol` 不 import 上层。
