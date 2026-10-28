@@ -66,6 +66,7 @@ LINK_TREE_PATH = "/bbs/app/link/tree"
 FEEDS_PATH = "/bbs/app/feeds"
 TOPIC_SEARCH_PATH = "/bbs/app/api/post_editor/topic_selection/search"
 SEARCH_WELCOME_PATH = "/bbs/app/api/search/welcome_page/v2"
+GENERAL_SEARCH_PATH = "/bbs/app/api/general/search/v1"
 
 #: 热搜榜在 welcome_page 返回的 Lists 里，head_text 等于这个值的那一组。
 #: 真实热搜榜是 head_text 为空的第 0 组：游戏名和热议混排（影之刃零、GTA6、逃生、AL…）。
@@ -302,6 +303,14 @@ class DmRequest:
     headers: dict[str, str]
 
 
+_EM_RE = re.compile(r"</?em>")
+
+
+def _strip_em(text: str) -> str:
+    """搜索结果标题里带 <em> 高亮，去掉它。"""
+    return _EM_RE.sub("", text)
+
+
 def _tag_text(raw: Any) -> str:
     """热搜条目的右侧角标。实测是 [{'text': '热门'}] 这种嵌套结构。"""
     if isinstance(raw, str):
@@ -450,6 +459,68 @@ class ProtocolClient:
                 except (TypeError, ValueError):
                     return None
         return None
+
+    async def search_topic_posts(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        sort: str = "award_num",
+        time_range: str = "7d",
+    ) -> list[dict[str, Any]]:
+        """按话题搜帖子，默认按点赞排序、限本周。
+
+        这是**发帖前最重要的一步**：看社区里高赞帖在聊什么角度，
+        比自己搜新闻靠谱得多——自己搜的"最新消息"很容易过时喵。
+
+        ``sort``：default / create_date / award_num（最多点赞）/ comment_num
+        ``time_range``："" 不限 / 7d / 30d / 180d / 360d
+        """
+        keyword = str(query or "").strip()
+        if not keyword:
+            raise ValueError("搜索话题需要关键词")
+
+        url = self.build_api_url(
+            GENERAL_SEARCH_PATH,
+            {
+                "q": keyword,
+                "search_type": "general",
+                "is_pull_down": "0",
+                "offset": "0",
+                "limit": str(max(1, min(limit, 30))),
+                "dw": "744",
+                "sort_filter": sort,
+                "time_range": time_range,
+            },
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        items = result.get("items")
+        if not isinstance(items, list):
+            raise SchemaChanged(f"{GENERAL_SEARCH_PATH} 响应缺 items")
+
+        posts: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            info = item.get("info") if isinstance(item.get("info"), dict) else {}
+            link_id = str(info.get("linkid") or info.get("link_id") or "").strip()
+            title = _strip_em(str(info.get("title") or "")).strip()
+            if not link_id or not title:
+                continue
+            posts.append(
+                {
+                    "link_id": link_id,
+                    "title": title,
+                    "description": _strip_em(str(info.get("description") or "")).strip(),
+                    "comment_num": int(info.get("comment_num") or 0),
+                    "up": int(info.get("up") or 0),
+                    "link_tag": info.get("link_tag"),
+                }
+            )
+        # 服务端排序可能不生效，本地再按互动量兜一次
+        posts.sort(key=lambda p: (p["comment_num"], p["up"]), reverse=True)
+        return posts[: max(1, limit)]
 
     async def fetch_hot_topics(self, *, limit: int = 5) -> list[dict[str, Any]]:
         """取热搜榜（「黑盒热议」组）的前 N 条。

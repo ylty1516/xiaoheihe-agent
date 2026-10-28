@@ -77,6 +77,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_hot = sub.add_parser("hot", help="看热搜榜（黑盒热议）")
     p_hot.add_argument("-n", "--limit", type=int, default=10, help="取前几条（默认 10）")
 
+    p_tp = sub.add_parser("topic-posts", help="看话题下社区高互动帖在聊什么")
+    p_tp.add_argument("query", help="话题关键词，如 GTA6")
+    p_tp.add_argument("-n", "--limit", type=int, default=8)
+    p_tp.add_argument("--time-range", dest="time_range", default="7d",
+                      choices=["7d", "30d", "180d", "360d", ""],
+                      help="时间范围，默认本周")
+
     p_study = sub.add_parser("study", help="逛帖学习：挑高质量帖子存素材（只读）")
     p_study.add_argument("-n", "--count", type=int, default=2, help="挑几篇（默认 2）")
     p_study.add_argument("--notes-dir", dest="notes_dir", default="notes/study")
@@ -126,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         "study",
         "delete",
         "hot",
+        "topic-posts",
     ):
         from xhh_agent.config import load_config
 
@@ -157,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_study import main as handler
         elif args.command == "hot":
             from xhh_agent.cli.cmd_hot import main as handler
+        elif args.command == "topic-posts":
+            from xhh_agent.cli.cmd_topic import main as handler
         elif args.command == "delete":
             from xhh_agent.cli.cmd_delete import main as handler
         else:

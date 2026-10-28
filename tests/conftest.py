@@ -730,3 +730,35 @@ def fake_upload_client() -> ProtocolClient:
     return _FakeUploadClient(
         Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
     )
+
+
+# ── 话题搜索夹具 ────────────────────────────────────────────
+
+class _FakeSearchClient(ProtocolClient):
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        return RawResponse(status=200, data={
+            "status": "ok",
+            "result": {
+                "items": [
+                    {"info": {"linkid": 1001, "title": "全体起立！《<em>GTA6</em>》正式官宣！！！",
+                              "description": "等了十年", "up": 0, "comment_num": 2518}},
+                    {"info": {"linkid": 1002, "title": "PC一周兔槽：《<em>GTA</em>》新作消息",
+                              "description": "周报", "up": 0, "comment_num": 479}},
+                    {"info": {"linkid": 1003, "title": "R星专业摄制团队在迈阿密街头夜间封路拍摄",
+                              "description": "取材", "up": 0, "comment_num": 210}},
+                    {"info": {"linkid": 1004, "title": "Claude code创始人直接离职备战<em>GTA6</em>",
+                              "description": "梗", "up": 0, "comment_num": 145}},
+                    {"info": {"linkid": 1005, "title": "GTA6 预购价格来了",
+                              "description": "79.99", "up": 0, "comment_num": 88}},
+                    {"info": {"linkid": 1006, "title": "无关的帖子", "description": "x",
+                              "up": 0, "comment_num": 3}},
+                ]
+            },
+        })
+
+
+@pytest.fixture
+def fake_search_client() -> ProtocolClient:
+    return _FakeSearchClient(
+        Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
+    )
