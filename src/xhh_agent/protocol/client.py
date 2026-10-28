@@ -10,6 +10,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
+from email.utils import parsedate_to_datetime
 from http.cookies import SimpleCookie
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse
@@ -83,6 +84,7 @@ class RawResponse:
     status: int
     data: Any
     set_cookies: tuple[str, ...] = ()
+    headers: tuple[tuple[str, str], ...] = ()
 
 
 def is_login_expired(data: Any) -> bool:
@@ -269,6 +271,7 @@ class ProtocolClient:
                 status=response.status,
                 data=data,
                 set_cookies=tuple(response.headers.getall("Set-Cookie", [])),
+                headers=tuple(response.headers.items()),
             )
 
     async def _request_json(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
@@ -312,6 +315,24 @@ class ProtocolClient:
             username=str(user.get("username") or ""),
             level=level,
         )
+
+    async def server_time(self) -> int:
+        """取服务端时间（HTTP ``Date`` 头），用于 doctor 检查本地时钟偏差。
+
+        拿不到时回退本地时间——此时 clock 检查实际失效，但不会误报失败。
+        """
+        url = self.build_api_url(
+            MESSAGE_PATH,
+            {"message_type": "", "list_type": "0", "offset": "0", "limit": "1"},
+        )
+        raw = await self._raw_request("GET", url)
+        for key, value in raw.headers:
+            if str(key).lower() == "date":
+                try:
+                    return int(parsedate_to_datetime(value).timestamp())
+                except (TypeError, ValueError):
+                    break
+        return int(time.time())
 
     # ── 收件箱（只读，P0 不回复任何内容）───────────────────
 

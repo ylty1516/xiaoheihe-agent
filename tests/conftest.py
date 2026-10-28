@@ -115,3 +115,35 @@ def fake_inbox_client() -> ProtocolClient:
 @pytest.fixture
 def fake_broken_schema_client() -> ProtocolClient:
     return make_client(load_fixture("whoami_empty.json"))
+
+
+# ── doctor 夹具：一个四项检查都能通过的 client ──────────────
+
+class _FakeDoctorClient(ProtocolClient):
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        if "list_type=2" in url:
+            return RawResponse(status=200, data=load_fixture("inbox_dm.json"))
+        if "message_type=16" in url:
+            return RawResponse(status=200, data=load_fixture("inbox_mention.json"))
+        if "/bbs/app/user/message" in url:
+            return RawResponse(status=200, data=load_fixture("inbox_comment.json"))
+        return RawResponse(status=200, data=load_fixture("whoami_ok.json"))
+
+    async def server_time(self) -> int:
+        import time as _time
+
+        return int(_time.time())
+
+
+@pytest.fixture
+def fake_doctor_client() -> ProtocolClient:
+    return _FakeDoctorClient(
+        Session(cookie="cookie=secret", heybox_id="83709585"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_expired_client() -> ProtocolClient:
+    """登录态失效的 client（doctor 测试用此名）。"""
+    return make_client(load_fixture("login_expired.json"), status=401)
