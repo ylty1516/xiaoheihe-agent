@@ -37,16 +37,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_inbox.add_argument("-f", "--format", choices=["json", "table"], default="json")
     p_inbox.add_argument("-n", "--limit", type=int, default=20)
 
-    p_draft = sub.add_parser("draft", help="写入草稿（不发布）")
-    p_draft.add_argument("--md", metavar="FILE", help="Markdown 源文件")
-    p_draft.add_argument("--title", required=False, help="帖子标题")
-    p_draft.add_argument("--tag", type=int, default=11, help="分区 tag（默认 11）")
-
-    p_pub = sub.add_parser("publish", help="正式发布（需 --yes）")
-    p_pub.add_argument("--md", metavar="FILE")
-    p_pub.add_argument("--title")
-    p_pub.add_argument("--tag", type=int, default=11)
-    p_pub.add_argument("--yes", action="store_true", help="确认发布")
+    for name, help_text in (
+        ("draft", "写入草稿（不公开）"),
+        ("publish", "正式发布（需 --yes）"),
+    ):
+        parser_ref = sub.add_parser(name, help=help_text)
+        parser_ref.add_argument("--md", metavar="FILE", help="Markdown 源文件")
+        parser_ref.add_argument("--html", metavar="FILE", help="已转换好的 HTML 源文件")
+        parser_ref.add_argument("--title", required=False, help="帖子标题")
+        parser_ref.add_argument("--tag", default=None, help="分区 ID（不给则用默认分区）")
+        parser_ref.add_argument("--html-out", dest="html_out", metavar="FILE",
+                                help="把转换结果另存一份，便于本地预览")
+        parser_ref.add_argument("--yes", action="store_true", help="确认正式发布")
 
     p_poll = sub.add_parser("poll", help="执行一轮轮询")
     p_poll.add_argument("--once", action="store_true", help="只跑一轮后退出")
@@ -85,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # 已实现的命令分派到这里（延迟导入，避免 CLI 启动就加载 aiohttp）
-    if args.command in ("login", "whoami", "doctor", "inbox", "dm"):
+    if args.command in ("login", "whoami", "doctor", "inbox", "dm", "draft", "publish"):
         from xhh_agent.config import load_config
 
         try:
@@ -102,6 +104,10 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_doctor import main as handler
         elif args.command == "dm":
             from xhh_agent.cli.cmd_dm import main as handler
+        elif args.command == "draft":
+            from xhh_agent.cli.cmd_post import draft_main as handler
+        elif args.command == "publish":
+            from xhh_agent.cli.cmd_post import publish_main as handler
         else:
             from xhh_agent.cli.cmd_inbox import main as handler
         return handler(args, cfg)

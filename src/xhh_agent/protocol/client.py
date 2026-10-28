@@ -6,6 +6,7 @@ P0 阶段**不包含任何发送能力**——没有 ``submit_*`` / ``reply_*`` 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -20,7 +21,15 @@ import aiohttp
 from xhh_agent.config import Config
 
 from .errors import LoginExpired, SchemaChanged, TransportError
-from .models import Account, InboxItem, InboxPage, QrPollResult, QrTicket, SendResult
+from .models import (
+    Account,
+    InboxItem,
+    InboxPage,
+    PostResult,
+    QrPollResult,
+    QrTicket,
+    SendResult,
+)
 from .session import Session
 from .signer import create_signed_params
 
@@ -49,6 +58,14 @@ QRCODE_URL_PATH = "/account/get_qrcode_url/"
 QR_STATE_PATH = "/account/qr_state/"
 MESSAGE_PATH = "/bbs/app/user/message"
 DIRECT_MESSAGE_PATH = "/chatroom/v2/msg/user"
+POST_PATH = "/bbs/app/api/link/post"
+
+#: 草稿没有分区时服务端可能拒，上游塞这个默认分区。
+DEFAULT_TOPIC_ID = "58144"
+LINK_TAG_DEFAULT_TOPIC = 28
+LINK_TAG_NORMAL = 27
+#: 默认发"文章"类型（11）。xiaoheihe-cli 的默认值，可正常发布。
+LINK_TAG_ARTICLE = 11
 
 #: 私信正文长度上限。规格 §5.7：回复上限 200 字，这里留宽一点供人工使用。
 DM_MAX_LENGTH = 500
@@ -362,6 +379,65 @@ class ProtocolClient:
                 except (TypeError, ValueError):
                     return None
         return None
+
+    async def submit_post(
+        self,
+        *,
+        title: str,
+        html: str,
+        draft: bool = True,
+        topic_ids: tuple[str, ...] = (),
+        desc: str = "",
+    ) -> PostResult:
+        """发帖或存草稿。
+
+        ``draft=True`` 时只进草稿箱（带 ``view_limit=1``，不对外可见）。
+        P1 阶段默认走草稿——发布是不可逆动作，格式没验证前不该发到公开区。
+        """
+        clean_title = str(title or "").strip()
+        clean_html = str(html or "").strip()
+        if not clean_title:
+            raise ValueError("帖子标题为空")
+        if not clean_html:
+            raise ValueError("帖子正文为空")
+        if len(clean_title) > 100:
+            raise ValueError(f"标题过长（{len(clean_title)} 字，上限 100）")
+
+        topics = [str(t).strip() for t in topic_ids if str(t).strip()]
+
+        # 正文以 block 数组形式提交。小黑盒 web 端用 type=html 承载富文本。
+        blocks = [{"type": "html", "text": clean_html}]
+        body: dict[str, str] = {
+            "text": json.dumps(blocks, ensure_ascii=False),
+            "title": clean_title,
+            "desc": (str(desc or "").strip() or clean_title)[:100],
+            "post_type": "1",
+            "link_tag": str(LINK_TAG_ARTICLE),
+            # 下面四个字段是必需的：缺了服务端回"错误的帖子类型#0001"。
+            # 取自已验证可发布的 xiaoheihe-cli。
+            "words_count": str(len(clean_html)),
+            "original": "1",
+            "declaration": "1",
+            "extra_declaration": "-1",
+            "draft": "1" if draft else "0",
+            "view_limit": "1",
+        }
+        if topics:
+            body["topic_ids"] = ",".join(topics)
+
+        url = self.build_api_url(POST_PATH, {"heybox_id": self.heybox_id})
+        data = await self._request_json(
+            "POST", url, data=urlencode(body), headers=self._form_headers()
+        )
+        if data.get("status") != "ok":
+            raise TransportError(f"发帖失败：{_error_message(data, 'unknown')}")
+
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        return PostResult(
+            ok=True,
+            link_id=str(result.get("link_id") or result.get("linkid") or ""),
+            is_draft=draft,
+        )
 
     def _form_headers(self) -> dict[str, str]:
         """表单提交的头。Cookie 在 session 默认头里，这里不重复带。"""

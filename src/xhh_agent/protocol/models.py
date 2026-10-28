@@ -67,3 +67,13 @@ class SendResult:
     ok: bool
     ack_id: str = ""
     message: str = ""
+
+
+@dataclass(frozen=True)
+class PostResult:
+    """发帖结果。``is_draft`` 区分"存草稿"与"已公开"，报告时必须说清。"""
+
+    ok: bool
+    link_id: str = ""
+    is_draft: bool = False
+    message: str = ""

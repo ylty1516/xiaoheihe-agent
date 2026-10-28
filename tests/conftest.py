@@ -230,3 +230,34 @@ def fake_dm_client_no_ack() -> ProtocolClient:
         Session(cookie="cookie=secret", heybox_id="85183285"),
         load_config(),
     )
+
+
+# ── 发帖夹具 ────────────────────────────────────────────────
+
+class _CapturingPostClient(ProtocolClient):
+    def __init__(self, payload: dict, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._payload = payload
+        self.captured: list[tuple] = []
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        self.captured.append((method, url, kwargs))
+        return RawResponse(status=200, data=self._payload)
+
+
+@pytest.fixture
+def fake_post_client() -> ProtocolClient:
+    return _CapturingPostClient(
+        {"status": "ok", "result": {"link_id": "999888"}},
+        Session(cookie="cookie=secret", heybox_id="85183285"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_post_client_fail() -> ProtocolClient:
+    return _CapturingPostClient(
+        {"status": "failed", "msg": "内容含违规信息"},
+        Session(cookie="cookie=secret", heybox_id="85183285"),
+        load_config(),
+    )
