@@ -625,7 +625,16 @@ def _hot_payload() -> dict:
         "status": "ok",
         "result": {
             "Lists": [
-                {"head_text": "", "items": [{"text": "影之刃零", "index_color": "#f00"}]},
+                {
+                    "head_text": "",
+                    "items": [
+                        {"text": "影之刃零", "index_color": "#f00"},
+                        {"text": "侠盗猎车手6", "index_color": "#f00"},
+                        {"text": "逃生", "index_color": "#f60"},
+                        {"text": "AL 一号种子出局菲姐送头等舱", "index_color": "#f60"},
+                        {"text": "梁其伟推荐影之刃零回退617.42驱动", "index_color": "#f90"},
+                    ],
+                },
                 {
                     "head_text": "黑盒热议",
                     "items": [

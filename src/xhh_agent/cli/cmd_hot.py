@@ -1,4 +1,4 @@
-"""xhh hot：看小黑盒热搜榜（「黑盒热议」）。
+"""xhh hot：看小黑盒热搜榜（「热搜榜」）。
 
 写帖前应该先跑这个喵。选题从里面挑，不要凭空想。
 """
@@ -38,7 +38,7 @@ async def _run(cfg: Config, limit: int) -> int:
     finally:
         await client.close()
 
-    print(f"黑盒热议（前 {len(topics)} 条）：\n")
+    print(f"热搜榜（前 {len(topics)} 条）：\n")
     for topic in topics:
         tag = f"  [{topic['right_tag']}]" if topic["right_tag"] else ""
         print(f"  {topic['index']}. {topic['text']}{tag}")

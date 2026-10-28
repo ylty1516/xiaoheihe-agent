@@ -68,6 +68,8 @@ TOPIC_SEARCH_PATH = "/bbs/app/api/post_editor/topic_selection/search"
 SEARCH_WELCOME_PATH = "/bbs/app/api/search/welcome_page/v2"
 
 #: 热搜榜在 welcome_page 返回的 Lists 里，head_text 等于这个值的那一组。
+#: 真实热搜榜是 head_text 为空的第 0 组：游戏名和热议混排（影之刃零、GTA6、逃生、AL…）。
+#: 「黑盒热议」是子榜，只从热议池里重排，位置和主榜不一样——别拿它当热搜。
 HOT_GROUP_TITLE = "黑盒热议"
 
 LINK_DELETE_PATH = "/bbs/app/link/delete"
@@ -300,6 +302,23 @@ class DmRequest:
     headers: dict[str, str]
 
 
+def _tag_text(raw: Any) -> str:
+    """热搜条目的右侧角标。实测是 [{'text': '热门'}] 这种嵌套结构。"""
+    if isinstance(raw, str):
+        return raw.strip()
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                text = str(item.get("text") or "").strip()
+                if text:
+                    return text
+            elif isinstance(item, str) and item.strip():
+                return item.strip()
+    if isinstance(raw, dict):
+        return str(raw.get("text") or "").strip()
+    return ""
+
+
 def _link_tag_for(topics: list[str]) -> int:
     """帖子类型跟着分区走。
 
@@ -445,31 +464,45 @@ class ProtocolClient:
         if not isinstance(groups, list):
             raise SchemaChanged(f"{SEARCH_WELCOME_PATH} 响应里找不到 Lists")
 
-        for group in groups:
-            if not isinstance(group, dict):
-                continue
-            if str(group.get("head_text") or "").strip() != HOT_GROUP_TITLE:
-                continue
-            items = group.get("items") if isinstance(group.get("items"), list) else []
-            topics: list[dict[str, Any]] = []
+        def _take(items: list) -> list[dict[str, Any]]:
+            picked: list[dict[str, Any]] = []
             for index, item in enumerate(items[: max(1, limit)], start=1):
                 if not isinstance(item, dict):
                     continue
                 text = str(item.get("text") or "").strip()
                 if not text:
                     continue
-                topics.append(
+                picked.append(
                     {
                         "index": index,
                         "text": text,
-                        "right_tag": str(item.get("right_tag") or ""),
+                        "right_tag": _tag_text(item.get("right_tag")),
                     }
                 )
-            return topics
+            return picked
 
-        raise SchemaChanged(
-            f"{SEARCH_WELCOME_PATH} 里没有「{HOT_GROUP_TITLE}」这一组，接口可能已变更"
-        )
+        # 主榜：head_text 为空的那组（游戏名 + 热议混排）
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            if str(group.get("head_text") or "").strip():
+                continue
+            items = group.get("items") if isinstance(group.get("items"), list) else []
+            if items:
+                return _take(items)
+
+        # 退化：拿「黑盒热议」子榜（位置和主榜不同，只能当参考）
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            if str(group.get("head_text") or "").strip() != HOT_GROUP_TITLE:
+                continue
+            items = group.get("items") if isinstance(group.get("items"), list) else []
+            if items:
+                logger.warning("热搜主榜缺失，退化到「%s」子榜", HOT_GROUP_TITLE)
+                return _take(items)
+
+        raise SchemaChanged(f"{SEARCH_WELCOME_PATH} 里找不到热搜榜数据，接口可能已变更")
 
     async def search_topics(self, query: str) -> list[dict[str, Any]]:
         """搜话题（= 发帖时的"分区"）。参数名是 ``q`` 不是 keyword。"""
