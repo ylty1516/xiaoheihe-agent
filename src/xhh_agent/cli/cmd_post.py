@@ -17,6 +17,8 @@ from pathlib import Path
 from xhh_agent.cli.cmd_login import session_path
 from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
+from xhh_agent.content.inline_images import replace_inline_images
+from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import LoginExpired, XhhError
 from xhh_agent.protocol.session import SessionStore
@@ -70,17 +72,6 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         print("正文转换后为空，已取消。", file=sys.stderr)
         return EXIT_ERROR
 
-    # 本地结构自检。用正则匹配真正的开标签：正文里提到 `<pre>` 这几个字
-    # （行内代码）会变成 <strong><pre></strong>，不该被当成残留标签。
-    warnings = []
-    if re.search(r"<(?:pre|table)[\s>]", html, re.IGNORECASE):
-        warnings.append("正文含 <pre>/<table> 真标签，小黑盒不支持，应转成图片")
-    if "data:image/" in html:
-        warnings.append(
-            "正文含 base64 内嵌图片——实测服务端会拒（'图片链接不合法'），"
-            "需要先上传到小黑盒图床拿 URL"
-        )
-
     preview = getattr(args, "html_out", None)
     if preview:
         Path(preview).write_text(html, encoding="utf-8")
@@ -88,8 +79,6 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     print(f"标题：{title}")
     print(f"转换后 HTML：{len(html)} 字符" + ("，含图片" if "data:image/" in html else ""))
-    for warning in warnings:
-        print(f"⚠ {warning}", file=sys.stderr)
 
     try:
         session = SessionStore(session_path(cfg)).load()
@@ -99,6 +88,33 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     client = ProtocolClient(session, cfg)
     try:
+        # 内嵌 base64 图会被服务端拒，必须先传图床换成 URL
+        if "data:image/" in html:
+            print("\n正在上传正文内嵌图片...", flush=True)
+            try:
+                html, uploaded = await replace_inline_images(html, CosUploader(client))
+            except XhhError as exc:
+                print(f"图片上传失败，已中止（不会发出残缺帖子）：{exc}", file=sys.stderr)
+                return EXIT_ERROR
+            if uploaded == 0:
+                print("图片替换失败，已中止。", file=sys.stderr)
+                return EXIT_ERROR
+            print(f"已上传 {uploaded} 张图片")
+
+        # 结构自检放在图片替换之后：替换前看到 base64 是正常的中转状态。
+        # 用 lookbehind 排除 `<strong><pre></strong>` —— 那是正文里行内代码
+        # 提到 "<pre>" 这几个字被加粗了，不是残留标签。
+        warnings = []
+        if re.search(r"(?<!<strong>)<(?:pre|table)[\s>]", html, re.IGNORECASE):
+            warnings.append("正文仍含 <pre>/<table> 真标签，小黑盒不支持")
+        if "data:image/" in html:
+            warnings.append("正文仍含 base64 内嵌图片，服务端会拒")
+        for warning in warnings:
+            print(f"⚠ {warning}", file=sys.stderr)
+        if warnings:
+            print("已中止，避免发出排版残缺的帖子。", file=sys.stderr)
+            return EXIT_ERROR
+
         result = await client.submit_post(
             title=title,
             html=html,

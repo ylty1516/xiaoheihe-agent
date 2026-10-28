@@ -380,6 +380,60 @@ class ProtocolClient:
                     return None
         return None
 
+    async def _put_cos_object(
+        self,
+        *,
+        data: bytes,
+        bucket: str,
+        region: str,
+        key: str,
+        mimetype: str,
+        token: dict[str, Any],
+    ) -> None:
+        """把字节直传腾讯云 COS。独立 session：这是对第三方域名的请求。"""
+        from .cos_upload import cos_authorization, cos_quote
+
+        credentials = token.get("credentials") if isinstance(token.get("credentials"), dict) else {}
+        secret_id = str(credentials.get("tmpSecretId") or "")
+        secret_key = str(credentials.get("tmpSecretKey") or "")
+        session_token = str(credentials.get("sessionToken") or "")
+        if not secret_id or not secret_key or not session_token:
+            raise SchemaChanged("图片上传授权响应缺少临时凭证")
+
+        now = int(time.time())
+        try:
+            start_time = int(token.get("startTime") or max(0, now - 60))
+            end_time = int(token.get("expiredTime") or (now + 300))
+        except (TypeError, ValueError):
+            start_time, end_time = max(0, now - 60), now + 300
+
+        host = f"{bucket}.cos.{region}.myqcloud.com"
+        object_path = "/" + key.lstrip("/")
+        headers = {
+            "Host": host,
+            "Content-Type": mimetype,
+            "x-cos-security-token": session_token,
+        }
+        headers["Authorization"] = cos_authorization(
+            secret_id=secret_id,
+            secret_key=secret_key,
+            method="PUT",
+            path=object_path,
+            headers=headers,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        url = f"https://{host}{cos_quote(object_path)}"
+
+        timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.put(url, data=data, headers=headers) as response:
+                if response.status >= 400:
+                    text = await response.text()
+                    raise TransportError(
+                        f"COS 图片上传失败：HTTP {response.status}，{text[:200]}"
+                    )
+
     async def submit_post(
         self,
         *,

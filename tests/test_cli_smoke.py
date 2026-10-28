@@ -13,8 +13,11 @@ def test_all_p0_commands_are_wired():
 
 
 def test_unimplemented_command_returns_2_not_crash():
-    """P1+ 命令应明确提示未实现，而不是 AttributeError"""
-    assert main(["draft", "--md", "x.md"]) == 2
+    """P2 的命令应明确提示未实现，而不是 AttributeError。
+
+    （draft/publish 已在 P1 实现，不能再拿它们当未实现样例。）
+    """
+    assert main(["poll", "--once"]) == 2
 
 
 class _FakeStream:

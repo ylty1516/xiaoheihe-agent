@@ -261,3 +261,65 @@ def fake_post_client_fail() -> ProtocolClient:
         Session(cookie="cookie=secret", heybox_id="85183285"),
         load_config(),
     )
+
+
+# ── 图片上传夹具 ────────────────────────────────────────────
+
+class _FakeCosClient:
+    """按路径返回假响应，并记录调用顺序。"""
+
+    def __init__(self, callback_payload: dict) -> None:
+        self.calls: list[tuple[str, dict]] = []
+        self._callback_payload = callback_payload
+
+    @property
+    def heybox_id(self) -> str:
+        return "85183285"
+
+    def build_api_url(self, path: str, params=None) -> str:
+        return f"https://api.xiaoheihe.cn{path}"
+
+    def _form_headers(self) -> dict:
+        return {"Content-Type": "application/x-www-form-urlencoded"}
+
+    async def _request_json(self, method: str, url: str, **kwargs):
+        path = url.split("?")[0].replace("https://api.xiaoheihe.cn", "")
+        self.calls.append((path, kwargs))
+        if "upload/info" in path:
+            return {
+                "status": "ok",
+                "result": {
+                    "bucket": "bucket-1250000000",
+                    "region": "ap-shanghai",
+                    "keys": ["bbs/code.png"],
+                },
+            }
+        if "upload/token" in path:
+            return {
+                "status": "ok",
+                "result": {
+                    "startTime": 1700000000,
+                    "expiredTime": 1700000300,
+                    "credentials": {
+                        "tmpSecretId": "AKID",
+                        "tmpSecretKey": "SECRET",
+                        "sessionToken": "TOKEN",
+                    },
+                },
+            }
+        if "upload/callback" in path:
+            return {"status": "ok", "result": self._callback_payload}
+        raise AssertionError(f"unexpected path: {path}")
+
+    async def _put_cos_object(self, **kwargs) -> None:
+        self.calls.append(("PUT_COS", kwargs))
+
+
+@pytest.fixture
+def fake_cos_client() -> _FakeCosClient:
+    return _FakeCosClient({"preview_urls": ["https://imgheybox.max-c.com/bbs/code.png"]})
+
+
+@pytest.fixture
+def fake_cos_client_no_url() -> _FakeCosClient:
+    return _FakeCosClient({"preview_urls": [], "thumbs": []})
