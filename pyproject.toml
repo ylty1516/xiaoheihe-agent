@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xhh-agent"
-version = "0.1.0"
+version = "0.3.0"
 description = "让 AI agent 通过自己的小黑盒账号发帖与回复"
 readme = "README.md"
 requires-python = ">=3.11"
