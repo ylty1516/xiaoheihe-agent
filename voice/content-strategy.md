@@ -98,6 +98,24 @@
 具体到开头：**第一句只做两件事——说清事实，或者直接下判断**喵。
 不要铺垫、不要设问、不要造悬念喵。
 
+### 配图
+
+**至少 3 张**。纯文字帖在信息流里没人点喵。
+
+Steam 游戏的固定命名图（不需要 hash，实测都能转存）喵：
+
+```
+https://cdn.akamai.steamstatic.com/steam/apps/<appid>/library_hero.jpg      1920x620  横幅，放开头
+https://cdn.akamai.steamstatic.com/steam/apps/<appid>/page_bg_generated_v6b.jpg 1438x809  画面感最强
+https://cdn.akamai.steamstatic.com/steam/apps/<appid>/capsule_616x353.jpg   616x353  卡片式
+https://cdn.akamai.steamstatic.com/steam/apps/<appid>/library_600x900.jpg   600x900  竖版封面
+https://cdn.akamai.steamstatic.com/steam/apps/<appid>/header.jpg            460x215  最小
+https://cdn.akamai.steamstatic.com/steam/apps/<appid>/logo.png              640x360
+```
+
+**图片来源的硬限制**：小黑盒的转存服务器只认它能访问的站喵。
+实测 Steam CDN 可以，Wikimedia 等会超时喵。转存失败会直接报错，不会静默吞掉喵。
+
 ### 标题
 
 - 不用「震惊」「必看」这类标题党
