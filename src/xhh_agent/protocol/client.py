@@ -24,6 +24,7 @@ from .errors import LoginExpired, SchemaChanged, TransportError
 from .models import (
     Account,
     DmMessage,
+    FeedPost,
     InboxItem,
     InboxPage,
     PostResult,
@@ -62,6 +63,11 @@ DIRECT_MESSAGE_PATH = "/chatroom/v2/msg/user"
 POST_PATH = "/bbs/app/api/link/post"
 COMMENT_CREATE_PATH = "/bbs/app/comment/create"
 LINK_TREE_PATH = "/bbs/app/link/tree"
+FEEDS_PATH = "/bbs/app/feeds"
+TOPIC_SEARCH_PATH = "/bbs/app/api/post_editor/topic_selection/search"
+
+#: 默认话题：PC游戏。实测有效，发帖必须有话题否则回"请添加分区"。
+DEFAULT_TOPIC_IDS = ("1",)
 
 #: 草稿没有分区时服务端可能拒，上游塞这个默认分区。
 DEFAULT_TOPIC_ID = "58144"
@@ -413,6 +419,105 @@ class ProtocolClient:
                     return None
         return None
 
+    async def search_topics(self, query: str) -> list[dict[str, Any]]:
+        """搜话题（= 发帖时的"分区"）。参数名是 ``q`` 不是 keyword。"""
+        keyword = str(query or "").strip()
+        if not keyword:
+            raise ValueError("搜索话题需要关键词")
+        url = self.build_api_url(
+            TOPIC_SEARCH_PATH, {"heybox_id": self.heybox_id, "q": keyword}
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        items = result.get("search_result")
+        if not isinstance(items, list):
+            raise SchemaChanged(f"{TOPIC_SEARCH_PATH} 响应缺 search_result")
+        return [
+            {
+                "topic_id": str(item.get("topic_id") or ""),
+                "name": str(item.get("name") or ""),
+            }
+            for item in items
+            if isinstance(item, dict) and item.get("topic_id")
+        ]
+
+    async def fetch_feed_posts(self, *, limit: int = 30) -> list[FeedPost]:
+        """拉首页推荐流，返回帖子摘要列表。用于逛帖学习。"""
+        url = self.build_api_url(
+            FEEDS_PATH,
+            {"offset": "0", "pull": "0", "heybox_id": self.heybox_id},
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result")
+        if not isinstance(result, dict):
+            raise SchemaChanged(f"{FEEDS_PATH} 响应缺 result")
+
+        raw = result.get("links") or result.get("feeds") or result.get("list")
+        if not isinstance(raw, list):
+            raise SchemaChanged(f"{FEEDS_PATH} 响应里找不到帖子列表")
+
+        posts: list[FeedPost] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            link = item.get("link") if isinstance(item.get("link"), dict) else item
+            link_id = str(link.get("linkid") or link.get("link_id") or "").strip()
+            if not link_id:
+                continue
+            user = link.get("user") if isinstance(link.get("user"), dict) else {}
+            topics = link.get("topics") if isinstance(link.get("topics"), list) else []
+            posts.append(
+                FeedPost(
+                    link_id=link_id,
+                    title=str(link.get("title") or ""),
+                    description=_strip_html(
+                        str(link.get("description") or link.get("text") or "")
+                    ),
+                    author_name=str(user.get("username") or user.get("nickname") or ""),
+                    up=int(link.get("up") or 0),
+                    comment_num=int(link.get("comment_num") or 0),
+                    topics=tuple(
+                        str(t.get("name"))
+                        for t in topics
+                        if isinstance(t, dict) and t.get("name")
+                    ),
+                )
+            )
+        return posts[:limit]
+
+    async def fetch_post_detail(self, link_id: str) -> dict[str, Any]:
+        """拉一篇帖子的详情。正文可能只有摘要（接口限制）。"""
+        url = self.build_api_url(
+            LINK_TREE_PATH,
+            {
+                "h_src": "",
+                "link_id": str(link_id),
+                "is_first": "1",
+                "page": "1",
+                "index": "1",
+                "limit": "3",
+                "owner_only": "0",
+                "heybox_id": self.heybox_id,
+            },
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        link = result.get("link") if isinstance(result.get("link"), dict) else {}
+        if not link:
+            raise SchemaChanged(f"{LINK_TREE_PATH} 没返回帖子内容，link_id={link_id}")
+        user = link.get("user") if isinstance(link.get("user"), dict) else {}
+        topics = link.get("topics") if isinstance(link.get("topics"), list) else []
+        return {
+            "link_id": str(link.get("linkid") or link_id),
+            "title": str(link.get("title") or ""),
+            "description": _strip_html(str(link.get("description") or "")),
+            "content": _strip_html(str(link.get("text") or link.get("content") or "")),
+            "author_name": str(user.get("username") or ""),
+            "up": int(link.get("up") or 0),
+            "comment_num": int(link.get("comment_num") or 0),
+            "topics": [str(t.get("name")) for t in topics if isinstance(t, dict)],
+        }
+
     async def fetch_dm_history(
         self, to_user_id: str, *, limit: int = 20
     ) -> list[DmMessage]:
@@ -606,43 +711,54 @@ class ProtocolClient:
         draft: bool = True,
         topic_ids: tuple[str, ...] = (),
         desc: str = "",
-        content_type: str = "text",
+        mode: str = "article",
     ) -> PostResult:
         """发帖或存草稿。
 
-        ``draft=True`` 时只进草稿箱（带 ``view_limit=1``，不对外可见）。
-        P1 阶段默认走草稿——发布是不可逆动作，格式没验证前不该发到公开区。
+        两种模式，都是实测过才写进来的：
+
+        **article（默认，link_tag=11）** —— 富文本文章，支持 HTML 标签、
+        图片、外链。需要有效的 ``topic_ids`` 以及文章声明字段。
+
+        **dynamic（link_tag=27）** —— 普通动态，只能放纯文本。塞 HTML 会把
+        标签原样显示出来（实测踩过）。
+
+        两种模式都**必须**带 ``topic_ids``，否则服务端回"请添加分区"。
+        话题 ID 要用 ``search_topics(q=...)`` 查真实值，别抄网上的数字——
+        我用过 58144，它是不存在的，一直报"错误的帖子类型"。
         """
         clean_title = str(title or "").strip()
-        clean_html = str(content or "").strip()
+        clean_body = str(content or "").strip()
         if not clean_title:
             raise ValueError("帖子标题为空")
-        if not clean_html:
+        if not clean_body:
             raise ValueError("帖子正文为空")
         if len(clean_title) > 100:
             raise ValueError(f"标题过长（{len(clean_title)} 字，上限 100）")
+        if mode not in {"article", "dynamic"}:
+            raise ValueError(f"不支持的 mode: {mode}")
 
         topics = [str(t).strip() for t in topic_ids if str(t).strip()]
+        is_article = mode == "article"
 
-        # 正文以 block 数组提交。
-        # **普通动态(type=text)是纯文本**：塞 HTML 会把标签原样显示出来。
-        # 富文本只有文章(post_type=2)支持，但它需要封面图和创作计划。
-        # 所以 content_type 默认 text，调用方负责把 Markdown 压成纯文本。
-        blocks = [{"type": content_type, "text": clean_html}]
-        # post_type=1（普通动态）的字段集。
-        # declaration / original / words_count / extra_declaration 是**文章**
-        # （post_type=2）才需要的；把它们塞进普通动态，正式发布会回
-        # "错误的帖子类型#0001"。草稿模式下服务端宽容，所以之前没暴露。
         body: dict[str, str] = {
-            "text": json.dumps(blocks, ensure_ascii=False),
             "title": clean_title,
             "desc": (str(desc or "").strip() or clean_title)[:100],
             "post_type": "1",
-            "link_tag": str(_link_tag_for(topics)),
+            "text": json.dumps(
+                [{"type": "html" if is_article else "text", "text": clean_body}],
+                ensure_ascii=False,
+            ),
+            "link_tag": str(LINK_TAG_ARTICLE if is_article else LINK_TAG_NORMAL),
         }
         if topics:
             body["topic_ids"] = ",".join(topics)
-        # view_limit / draft 只在草稿时带：正式发布的字段集里没有它们
+        if is_article:
+            # 文章必需的四件套。缺了会回"错误的帖子类型#0001"
+            body["words_count"] = str(len(clean_body))
+            body["original"] = "1"
+            body["declaration"] = "1"
+            body["extra_declaration"] = "-1"
         if draft:
             body["draft"] = "1"
             body["view_limit"] = "1"

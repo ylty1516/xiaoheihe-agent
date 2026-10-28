@@ -34,27 +34,48 @@ async def test_publish_has_no_draft_flag(fake_post_client):
     assert "%22draft%22" not in body
 
 
-async def test_html_is_wrapped_in_blocks(fake_post_client):
-    await fake_post_client.submit_post(title="标题", content="<p>正文</p>", draft=True)
+async def test_article_mode_uses_html_block(fake_post_client):
+    """文章（link_tag=11）才支持富文本，block 类型必须是 html。"""
+    await fake_post_client.submit_post(
+        title="标题", content="<p>正文</p>", draft=True, topic_ids=("1",), mode="article"
+    )
     _, _, kwargs = fake_post_client.captured[-1]
     body = kwargs["data"]
-    # text 字段是 JSON 化的 block 数组，且 type 必须是 text 不是 html
     assert "%22type%22" in body
-    assert "%22type%22%3A+%22text%22" in body or '"type": "text"' in body
+    assert "html" in body
+    assert "link_tag=11" in body
 
 
-async def test_article_only_fields_not_sent_for_normal_post(fake_post_client):
-    """declaration/original 是文章(post_type=2)的字段。
-
-    塞进普通动态，正式发布会回"错误的帖子类型#0001"——
-    草稿模式下服务端宽容，所以这个错只在真发布时暴露。
-    """
-    await fake_post_client.submit_post(title="标题", content="<p>正文</p>", draft=True)
+async def test_dynamic_mode_uses_text_block(fake_post_client):
+    """普通动态只能纯文本，用 html 会把标签原样显示出来。"""
+    await fake_post_client.submit_post(
+        title="标题", content="纯文本正文", draft=True, topic_ids=("1",), mode="dynamic"
+    )
     _, _, kwargs = fake_post_client.captured[-1]
     body = kwargs["data"]
-    for field in ("declaration=", "original=", "extra_declaration="):
-        assert field not in body, f"不该发送 {field}"
-    assert "link_tag=11" in body
+    assert "text" in body and "html" not in body
+    assert "link_tag=27" in body
+
+
+async def test_article_fields_required_for_article(fake_post_client):
+    """文章模式缺这四个字段会回"错误的帖子类型#0001"。"""
+    await fake_post_client.submit_post(
+        title="标题", content="<p>正文</p>", draft=True, topic_ids=("1",), mode="article"
+    )
+    _, _, kwargs = fake_post_client.captured[-1]
+    body = kwargs["data"]
+    for field in ("declaration=1", "original=1", "extra_declaration=-1", "words_count="):
+        assert field in body, f"缺少 {field}"
+
+
+async def test_dynamic_mode_omits_article_fields(fake_post_client):
+    await fake_post_client.submit_post(
+        title="标题", content="纯文本", draft=True, topic_ids=("1",), mode="dynamic"
+    )
+    _, _, kwargs = fake_post_client.captured[-1]
+    body = kwargs["data"]
+    for field in ("declaration=", "extra_declaration="):
+        assert field not in body
 
 
 async def test_publish_omits_draft_and_view_limit(fake_post_client):

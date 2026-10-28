@@ -65,6 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_q.add_argument("action", choices=["list", "show", "approve", "reject"])
     p_q.add_argument("id", nargs="?", help="队列条目 id")
 
+    p_study = sub.add_parser("study", help="逛帖学习：挑高质量帖子存素材（只读）")
+    p_study.add_argument("-n", "--count", type=int, default=2, help="挑几篇（默认 2）")
+    p_study.add_argument("--notes-dir", dest="notes_dir", default="notes/study")
+    p_study.add_argument("--list", action="store_true", help="只看已记录的笔记")
+
     p_rep = sub.add_parser("reply", help="回复队列里的评论（默认 dry-run）")
     p_rep.add_argument("--queue-id", dest="queue_id", type=int, required=True)
     p_rep.add_argument("--text", required=False, help="回复内容")
@@ -105,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         "poll",
         "queue",
         "reply",
+        "study",
     ):
         from xhh_agent.config import load_config
 
@@ -132,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_reply import queue_main as handler
         elif args.command == "reply":
             from xhh_agent.cli.cmd_reply import reply_main as handler
+        elif args.command == "study":
+            from xhh_agent.cli.cmd_study import main as handler
         else:
             from xhh_agent.cli.cmd_inbox import main as handler
         return handler(args, cfg)

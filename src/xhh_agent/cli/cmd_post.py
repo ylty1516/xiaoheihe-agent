@@ -41,7 +41,8 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
     md_path = getattr(args, "md", None)
     html_path = getattr(args, "html", None)
     title = (getattr(args, "title", None) or "").strip()
-    topic = getattr(args, "tag", None)
+    topic = getattr(args, "tag", None) or "1"   # 默认 PC游戏
+    topics = (str(topic),)
 
     if not title:
         print("参数错误：缺少 --title", file=sys.stderr)
@@ -69,8 +70,8 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
         # 普通动态是纯文本：HTML 标签会被原样显示出来（实测踩过）。
         if markdown_text:
-            body_text = markdown_to_plain(markdown_text)
-            html = markdown_to_heybox_html(markdown_text)   # 仅用于本地预览
+            body_text = markdown_to_heybox_html(markdown_text)
+            html = body_text
         else:
             body_text = source_text
             html = source_text
@@ -88,9 +89,8 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         print(f"转换结果已保存：{preview}（可先用浏览器打开检查排版）")
 
     print(f"标题：{title}")
-    print(f"正文（纯文本）：{len(body_text)} 字符")
-    if "<" in body_text and ">" in body_text:
-        print("⚠ 正文里还有尖括号，动态会原样显示，检查是否漏了标签", file=sys.stderr)
+    print(f"正文（HTML，article 模式）：{len(body_text)} 字符")
+
 
     try:
         session = SessionStore(session_path(cfg)).load()
@@ -132,9 +132,9 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         result = await client.submit_post(
             title=title,
             content=body_text,
-            content_type="text",
+            mode="article",
+            topic_ids=topics,
             draft=draft,
-            topic_ids=(str(topic),) if topic else (),
         )
         mode = "草稿" if result.is_draft else "公开发布"
         print(f"\n已{mode}" + (f"，link_id={result.link_id}" if result.link_id else ""))

@@ -97,3 +97,21 @@ class DmMessage:
     timestamp: int
     msg_type: int
     is_mine: bool = False
+
+
+@dataclass(frozen=True)
+class FeedPost:
+    """推荐流里的一条帖子摘要。"""
+
+    link_id: str
+    title: str
+    description: str
+    author_name: str = ""
+    up: int = 0
+    comment_num: int = 0
+    topics: tuple[str, ...] = ()
+
+    @property
+    def engagement(self) -> int:
+        """互动热度。评论权重高于点赞——愿意评论说明内容真被读进去了。"""
+        return self.up + self.comment_num * 2

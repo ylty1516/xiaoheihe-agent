@@ -420,3 +420,48 @@ def fake_dm_history_client_broken() -> ProtocolClient:
         Session(cookie="cookie=secret", heybox_id="85183285"),
         load_config(),
     )
+
+
+# ── 逛帖夹具 ────────────────────────────────────────────────
+
+class _FakeFeedClient:
+    heybox_id = "10000001"
+
+    def __init__(self, posts: list[dict]) -> None:
+        self._posts = posts
+
+    def build_api_url(self, path, params=None):
+        return f"https://api.xiaoheihe.cn{path}"
+
+    async def fetch_feed_posts(self, *, limit=20):
+        from xhh_agent.protocol.models import FeedPost
+
+        return [
+            FeedPost(
+                link_id=str(p["linkid"]),
+                title=p["title"],
+                description=p["description"],
+                author_name=p.get("author", "某人"),
+                up=p.get("up", 0),
+                comment_num=p.get("comment_num", 0),
+            )
+            for p in self._posts
+        ]
+
+    async def fetch_post_detail(self, link_id: str):
+        return {
+            "link_id": link_id,
+            "title": f"帖子 {link_id}",
+            "content": "正文内容" * 100,
+            "topics": ["PC游戏"],
+        }
+
+
+@pytest.fixture
+def fake_feed_client() -> _FakeFeedClient:
+    return _FakeFeedClient(
+        [
+            {"linkid": 1, "title": "高质量帖", "description": "长描述 " * 80, "up": 500, "comment_num": 60},
+            {"linkid": 2, "title": "普通帖", "description": "长描述 " * 80, "up": 5, "comment_num": 1},
+        ]
+    )
