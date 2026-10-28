@@ -193,3 +193,9 @@ class _FixedInboxClient(ProtocolClient):
 
     async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
         return RawResponse(status=200, data=load_fixture(self._fixture_name))
+
+
+@pytest.fixture
+def fake_relogin_client() -> ProtocolClient:
+    """cookie 有效但请求缺 web 客户端参数时，服务端回 status=relogin。"""
+    return make_client(load_fixture("login_relogin.json"))

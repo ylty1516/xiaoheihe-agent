@@ -57,3 +57,14 @@ async def test_all_messages_unparseable_raises_schema_changed(fake_inbox_all_bro
 
     with pytest.raises(SchemaChanged):
         await fake_inbox_all_broken.fetch_inbox()
+
+
+async def test_dm_peer_id_comes_from_message_id(fake_inbox_client):
+    """实测：私信会话的 user_a 只有 username/avartar，没有 id。
+    对方 user_id 在 message_id 字段里（当 entry=message 时）。
+    拿不到这个 id，P3 就没法把私信发回去。"""
+    page = await fake_inbox_client.fetch_inbox()
+    dm = [i for i in page.items if i.channel == "dm"]
+    assert len(dm) == 1
+    assert dm[0].sender_id == "34166294"
+    assert dm[0].sender_name == "_Altria_"

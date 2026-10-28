@@ -1,4 +1,4 @@
 {
   "status": "ok",
-  "result": { "links": [], "total_page": 0 }
+  "result": { "message_unread_num": 0 }
 }

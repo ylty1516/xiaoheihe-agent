@@ -3,12 +3,16 @@
   "result": {
     "messages": [
       {
-        "message_id": "3001",
+        "message_id": 34166294,
         "entry": "message",
-        "message_type": "6",
-        "timestamp": "1750000300",
-        "user_a": { "heybox_id": "444", "username": "私信者" },
-        "msg": "在吗，想请教个问题"
+        "count": 0,
+        "timestamp": 1750000300,
+        "user_a": {
+          "avartar": "https://imgheybox.max-c.com/x.png",
+          "border": 2,
+          "username": "_Altria_"
+        },
+        "text": "我们已互相关注，一起聊聊吧！"
       }
     ]
   }

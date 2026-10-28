@@ -29,6 +29,22 @@ logger = logging.getLogger(__name__)
 API_ORIGIN = "https://api.xiaoheihe.cn"
 WEB_ORIGIN = "https://www.xiaoheihe.cn"
 
+#: 服务端靠这组参数识别"合法的 web 客户端"。
+#: 缺了它们，``/bbs/app/user/message`` 会返回 ``status=relogin``，
+#: 即使 cookie 完全有效——表现为"登录了但什么都拉不到"。
+#: 取自上游 ``build_api_url`` 的默认值。
+WEB_CLIENT_PARAMS: dict[str, str] = {
+    "os_type": "web",
+    "app": "heybox",
+    "client_type": "web",
+    "version": "999.0.4",
+    "web_version": "2.5",
+    "x_client_type": "web",
+    "x_app": "heybox_website",
+    "x_os_type": "Windows",
+    "device_info": "Chrome",
+}
+
 QRCODE_URL_PATH = "/account/get_qrcode_url/"
 QR_STATE_PATH = "/account/qr_state/"
 MESSAGE_PATH = "/bbs/app/user/message"
@@ -59,11 +75,6 @@ LOGIN_COOKIE_NAMES = {
     "nickname",
     "x_xhh_tokenid",
 }
-
-#: 用户资料入口。P0 只用它验证会话有效性。
-#: 注意：``username`` 为尽力而为解析，真实字段名需真机验收校正；
-#: 取不到 username 不影响 whoami 的核心目的（确认会话未失效）。
-WHOAMI_PATH = "/bbs/web/profile/post/links"
 
 _UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -234,12 +245,19 @@ class ProtocolClient:
     def build_api_url(self, path: str, params: dict[str, Any] | None = None) -> str:
         """拼接带签名的 API URL。
 
+        顺序很重要：web 客户端参数 → device_id / heybox_id → 调用方参数 → 签名。
+        这样调用方可以显式覆盖默认值（上游用同样的 update 顺序）。
+
         注意：**不要把这个方法的返回值打进日志**——query 里有 hkey。
         """
-        query: dict[str, Any] = dict(params or {})
-        query.update(create_signed_params(path))
+        query: dict[str, Any] = dict(WEB_CLIENT_PARAMS)
+        if self.session.device_id:
+            query["device_id"] = self.session.device_id
         if self.heybox_id:
-            query.setdefault("heybox_id", self.heybox_id)
+            query["heybox_id"] = self.heybox_id
+        if params:
+            query.update({key: value for key, value in params.items() if value is not None})
+        query.update(create_signed_params(path))
         return f"{API_ORIGIN}{path}?{urlencode(query)}"
 
     async def _get_http(self) -> aiohttp.ClientSession:
@@ -248,7 +266,7 @@ class ProtocolClient:
                 headers={
                     "Cookie": self.session.cookie,
                     "User-Agent": _UA,
-                    "Referer": "https://www.xiaoheihe.cn/",
+                    "Referer": f"{WEB_ORIGIN}/",
                 },
             )
         return self._http
@@ -289,36 +307,26 @@ class ProtocolClient:
     # ── 接口 ────────────────────────────────────────────────
 
     async def whoami(self) -> Account:
-        url = self.build_api_url(WHOAMI_PATH, {"offset": 0, "limit": 1})
+        """用消息接口验证会话有效。
+
+        为什么不查"用户资料"接口：那个接口（``/bbs/web/profile/post/links``）
+        实测返回 ``status=failed`` 且 result 为空，无法区分"会话失效"和"接口变了"。
+        消息接口是本项目真正依赖的接口，能拉到数据才算有效——这是最实在的证据。
+        """
+        url = self.build_api_url(
+            MESSAGE_PATH,
+            {"message_type": "", "list_type": "0", "offset": "0", "limit": "1"},
+        )
         data = await self._request_json("GET", url)
 
         result = data.get("result")
-        if not isinstance(result, dict) or not result:
+        if not isinstance(result, dict) or "messages" not in result:
             raise SchemaChanged(
-                f"{WHOAMI_PATH} 返回空 result。可能是接口结构变更，"
-                "而不是账号无效——请核对后更新解析逻辑。"
-            )
-
-        user = result.get("user") if isinstance(result.get("user"), dict) else {}
-        # 审查 I3：不能拿本地 session 的 heybox_id 拼一个"会话有效"的结论——那是自证。
-        heybox_id = str(user.get("heybox_id") or "") if user else ""
-        if not heybox_id:
-            raise SchemaChanged(
-                f"{WHOAMI_PATH} 响应中没有 user.heybox_id。这是接口结构变更，"
+                f"{MESSAGE_PATH} 响应缺少 result.messages——这是接口结构变更，"
                 "不能据此判定会话有效。"
             )
 
-        level_info = user.get("level_info") if isinstance(user.get("level_info"), dict) else {}
-        try:
-            level = int(level_info.get("level") or 0)
-        except (TypeError, ValueError):
-            level = 0
-
-        return Account(
-            heybox_id=heybox_id,
-            username=str(user.get("username") or ""),
-            level=level,
-        )
+        return Account(heybox_id=self.heybox_id, username="", level=0)
 
     async def server_time(self) -> int | None:
         """取服务端时间（HTTP ``Date`` 头）。
@@ -466,22 +474,31 @@ class ProtocolClient:
         )
 
     def _to_dm_item(self, message: dict[str, Any]) -> InboxItem | None:
+        """解析一条私信会话入口。
+
+        实测结构：``user_a`` 只有 ``username`` / ``avartar`` / ``border``，**没有 id**。
+        对方的 user_id 实际在 ``message_id`` 字段里（仅当 ``entry == "message"``）。
+        拿不到这个 id，P3 就无法把私信发回去。
+        """
         user = message.get("user_a") if isinstance(message.get("user_a"), dict) else {}
-        sender_id = str(user.get("heybox_id") or user.get("userid") or "")
-        if not sender_id:
+        sender_name = str(user.get("username") or user.get("nickname") or "")
+
+        peer_id = ""
+        if str(message.get("entry") or "") == "message":
+            peer_id = str(message.get("message_id") or "")
+        if not peer_id:
+            peer_id = str(user.get("heybox_id") or user.get("userid") or "")
+        if not peer_id:
             return None
-        sender_name = str(user.get("username") or user.get("nickname") or sender_id)
-        timestamp = _message_timestamp(message)
-        message_id = str(message.get("message_id") or "") or f"dm:{sender_id}:{timestamp}"
 
         return InboxItem(
             channel="dm",
-            message_id=message_id,
-            sender_id=sender_id,
-            sender_name=sender_name,
+            message_id=f"dm:{peer_id}",
+            sender_id=peer_id,
+            sender_name=sender_name or peer_id,
             text=_message_text(message),
-            timestamp=timestamp,
-            raw_message_type=str(message.get("message_type") or ""),
+            timestamp=_message_timestamp(message),
+            raw_message_type=str(message.get("message_type") or message.get("entry") or ""),
         )
 
     def build_login_url(self, path: str, params: dict[str, Any] | None = None) -> str:
