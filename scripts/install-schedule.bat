@@ -1,14 +1,15 @@
 @echo off
+REM 双击入口：自动提权后注册两个每日计划任务。
+REM 注册根路径的计划任务需要管理员权限，所以会弹一次 UAC 确认。
 setlocal
-set ROOT=%~dp0..
-echo 正在注册计划任务...
-schtasks /Create /TN "xiaoheihe-daily-poll"  /TR "\"%ROOT%\scripts\daily-poll.bat\""  /SC DAILY /ST 09:00 /F
-schtasks /Create /TN "xiaoheihe-daily-study" /TR "\"%ROOT%\scripts\daily-study.bat\"" /SC DAILY /ST 21:00 /F
+net session >nul 2>&1
+if not "%ERRORLEVEL%"=="0" (
+  echo Requesting administrator privileges...
+  powershell -NoProfile -Command "Start-Process -Verb RunAs -FilePath '%~f0'"
+  exit /b
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-schedule.ps1"
 echo.
-echo 已注册：
-echo   09:00  xiaoheihe-daily-poll   （扫新评论 + 生成回复草稿，不发送）
-echo   21:00  xiaoheihe-daily-study  （挑两篇帖子存笔记）
-echo.
-echo 查看：schtasks /Query /TN "xiaoheihe-daily-poll"
-echo 删除：scripts\uninstall-schedule.bat
+pause
 endlocal

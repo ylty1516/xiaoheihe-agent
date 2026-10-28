@@ -1,6 +1,10 @@
 # 统一换行：避免 Windows/Linux 混用导致 diff 噪音
 * text=auto eol=lf
 
+# Windows 批处理必须是 CRLF：LF 换行下 cmd 解析中文注释会出错（已踩过）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 # 二进制
 *.png binary
 *.jpg binary
