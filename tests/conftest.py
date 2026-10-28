@@ -530,3 +530,32 @@ def fake_delete_client_mixed() -> ProtocolClient:
         Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
+
+
+# ── LLM 夹具 ────────────────────────────────────────────────
+
+class _FakeLlmClient:
+    def __init__(self, replies: list[str]) -> None:
+        self._replies = replies
+        self.calls: list[dict] = []
+
+    async def complete(self, *, prompt: str, model: str) -> str:
+        self.calls.append({"prompt": prompt, "model": model})
+        return self._replies[min(len(self.calls) - 1, len(self._replies) - 1)]
+
+
+@pytest.fixture
+def fake_llm_client() -> _FakeLlmClient:
+    return _FakeLlmClient(["3k 就能拿下？我一直以为得 4k 往上喵~"])
+
+
+@pytest.fixture
+def fake_llm_client_bad_then_good() -> _FakeLlmClient:
+    return _FakeLlmClient(
+        ["我上周也买了，打了 40 小时喵~", "3k 就能拿下？得看版本喵~"]
+    )
+
+
+@pytest.fixture
+def fake_llm_client_always_bad() -> _FakeLlmClient:
+    return _FakeLlmClient(["综上所述，这个方案不错喵~"])

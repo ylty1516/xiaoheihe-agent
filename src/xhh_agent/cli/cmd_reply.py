@@ -15,8 +15,15 @@ import json
 import sys
 from pathlib import Path
 
+from pathlib import Path
+
 from xhh_agent.automation.gate import Gate
 from xhh_agent.automation.poll import PollRunner
+from xhh_agent.automation.generator import (
+    GenerationError,
+    LlmReplyGenerator,
+    OpenAICompatClient,
+)
 from xhh_agent.cli.cmd_login import session_path
 from xhh_agent.config import Config
 from xhh_agent.protocol.client import ProtocolClient
@@ -128,7 +135,46 @@ def queue_main(args: object, cfg: Config) -> int:
 
 # ── reply ───────────────────────────────────────────────
 
-async def _reply(cfg: Config, queue_id: int, text: str, do_send: bool) -> int:
+def _load_profile() -> str:
+    path = Path("voice/profile.md")
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    return "句尾用喵~，女性语气，15-40 字，少用转折词。"
+
+
+async def _generate_reply(cfg: Config, incoming: dict, sender_name: str) -> str:
+    """调模型生成回复。失败抛 GenerationError。"""
+    if not cfg.llm_api_key:
+        raise GenerationError(
+            "没有可用的模型 key。请设置 XHH_LLM_API_KEY 或 DEEPSEEK_API_KEY"
+        )
+    from xhh_agent.protocol.models import InboxItem
+
+    item = InboxItem(
+        channel="comment",
+        message_id=str(incoming.get("message_id") or ""),
+        sender_id="",
+        sender_name=sender_name,
+        text=str(incoming.get("text") or ""),
+        timestamp=int(incoming.get("timestamp") or 0),
+        raw_message_type="1",
+        link_id=str(incoming.get("link_id") or ""),
+        reply_id=str(incoming.get("reply_id") or ""),
+        root_id=str(incoming.get("root_id") or ""),
+        link_title=str(incoming.get("link_title") or ""),
+        replied_text=str(incoming.get("replied_text") or ""),
+    )
+    generator = LlmReplyGenerator(
+        client=OpenAICompatClient(base_url=cfg.llm_base_url, api_key=cfg.llm_api_key),
+        profile_text=_load_profile(),
+        model=cfg.llm_model,
+    )
+    return await generator.generate(item)
+
+
+async def _reply(
+    cfg: Config, queue_id: int, text: str, do_send: bool, generate: bool = False
+) -> int:
     store = _store(cfg)
     try:
         row = store.get_queue(queue_id)
@@ -144,8 +190,15 @@ async def _reply(cfg: Config, queue_id: int, text: str, do_send: bool) -> int:
         reply_id = str(incoming.get("reply_id") or "")
         root_id = str(incoming.get("root_id") or reply_id)
         content = (text or "").strip()
+        if generate and not content:
+            print("正在生成回复...", flush=True)
+            try:
+                content = await _generate_reply(cfg, incoming, row["sender_name"] or "")
+            except GenerationError as exc:
+                print(f"生成失败：{exc}", file=sys.stderr)
+                return EXIT_ERROR
         if not content:
-            print("参数错误：缺少 --text（回复内容由你决定）", file=sys.stderr)
+            print("参数错误：缺少 --text，或加 --generate 让模型写", file=sys.stderr)
             return EXIT_USAGE
 
         gate = Gate(store, cfg).check(link_id=link_id)
@@ -213,5 +266,6 @@ def reply_main(args: object, cfg: Config) -> int:
             int(getattr(args, "queue_id", 0) or 0),
             getattr(args, "text", "") or "",
             bool(getattr(args, "send", False)),
+            bool(getattr(args, "generate", False)),
         )
     )

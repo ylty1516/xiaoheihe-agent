@@ -78,6 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_rep = sub.add_parser("reply", help="回复队列里的评论（默认 dry-run）")
     p_rep.add_argument("--queue-id", dest="queue_id", type=int, required=True)
     p_rep.add_argument("--text", required=False, help="回复内容")
+    p_rep.add_argument("--generate", action="store_true", help="用模型生成回复内容")
     p_rep.add_argument("--send", action="store_true", help="真的发送")
 
     return p

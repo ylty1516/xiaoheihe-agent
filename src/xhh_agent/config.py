@@ -51,6 +51,10 @@ class Config:
     max_dm_per_day: int
     db_path: str
     log_level: str
+    # ── 生成回复用的模型接口（OpenAI 兼容）──
+    llm_base_url: str
+    llm_api_key: str
+    llm_model: str
 
 
 def _int(name: str, default: int) -> int:
@@ -110,4 +114,10 @@ def load_config() -> Config:
         max_dm_per_day=_capped("XHH_MAX_DM_PER_DAY", "dm_per_day"),
         db_path=os.environ.get("XHH_DB_PATH", ".data/xhh.db").strip(),
         log_level=os.environ.get("XHH_LOG_LEVEL", "INFO").strip().upper(),
+        llm_base_url=os.environ.get("XHH_LLM_BASE_URL", "https://api.deepseek.com").strip(),
+        # 没配 XHH_LLM_API_KEY 时回退到 DEEPSEEK_API_KEY
+        llm_api_key=(
+            os.environ.get("XHH_LLM_API_KEY") or os.environ.get("DEEPSEEK_API_KEY") or ""
+        ).strip(),
+        llm_model=os.environ.get("XHH_LLM_MODEL", "deepseek-chat").strip(),
     )
