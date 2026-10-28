@@ -112,7 +112,14 @@ class HeyBoxConverter:
     REMOTE_IMAGE_TIMEOUT = 12
     INTERNAL_IMAGE_HOST_SUFFIXES = ("xiaoheihe.cn", "max-c.com")
 
-    def __init__(self):
+    def __init__(self, inline_images: bool = False):
+        """``inline_images=False``（默认）保留图片原始 URL。
+
+        上游的做法是把远程图片下载成 base64 内联，好处是 HTML 自包含，
+        坏处是小黑盒发帖时会拒（"图片链接不合法"），而且一张图能撑到十几万字符。
+        本项目改成保留 URL，由发帖层转存到小黑盒图床。
+        """
+        self._inline_images = inline_images
         self.stats = ConvertStats()
 
     def convert(self, text: str, source_format: str = "auto") -> str:
@@ -594,6 +601,8 @@ class HeyBoxConverter:
 
     def _inline_html_images(self, html: str) -> str:
         """将 HTML 中的图片地址尽量转成可直接发布的 data URL。"""
+        if not self._inline_images:
+            return html
 
         def replace_img(match):
             tag = match.group(0)
@@ -622,6 +631,9 @@ class HeyBoxConverter:
         return re.sub(r"<img\b[^>]*>", replace_img, html, flags=re.IGNORECASE)
 
     def _resolve_image_source(self, src: str) -> Optional[str]:
+        if not self._inline_images and str(src or "").lower().startswith(("http://", "https://")):
+            # 保留原始 URL，交给发帖层转存
+            return src
         src = html_lib.unescape((src or "").strip())
         if not src:
             return None

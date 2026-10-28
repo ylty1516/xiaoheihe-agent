@@ -100,29 +100,12 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     client = ProtocolClient(session, cfg)
     try:
-        # 动态是纯文本，带不了图片；图片需要走文章模式或后续 block
-        if "data:image/" in body_text:
-            print("⚠ 动态不支持内嵌图片，图片会被丢掉", file=sys.stderr)
-        if False and "data:image/" in html:
-            print("\n正在上传正文内嵌图片...", flush=True)
-            try:
-                html, uploaded = await replace_inline_images(html, CosUploader(client))
-            except XhhError as exc:
-                print(f"图片上传失败，已中止（不会发出残缺帖子）：{exc}", file=sys.stderr)
-                return EXIT_ERROR
-            if uploaded == 0:
-                print("图片替换失败，已中止。", file=sys.stderr)
-                return EXIT_ERROR
-            print(f"已上传 {uploaded} 张图片")
-
         # 结构自检放在图片替换之后：替换前看到 base64 是正常的中转状态。
         # 用 lookbehind 排除 `<strong><pre></strong>` —— 那是正文里行内代码
         # 提到 "<pre>" 这几个字被加粗了，不是残留标签。
         warnings = []
         if re.search(r"(?<!<strong>)<(?:pre|table)[\s>]", html, re.IGNORECASE):
             warnings.append("正文仍含 <pre>/<table> 真标签，小黑盒不支持")
-        if "data:image/" in html:
-            warnings.append("正文仍含 base64 内嵌图片，服务端会拒")
         for warning in warnings:
             print(f"⚠ {warning}", file=sys.stderr)
         if warnings:
@@ -134,6 +117,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             content=body_text,
             mode="article",
             topic_ids=topics,
+            edit_link_id=str(getattr(args, "edit_link", "") or ""),
             draft=draft,
         )
         mode = "草稿" if result.is_draft else "公开发布"

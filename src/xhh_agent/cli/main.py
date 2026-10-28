@@ -49,6 +49,8 @@ def build_parser() -> argparse.ArgumentParser:
         parser_ref.add_argument("--html-out", dest="html_out", metavar="FILE",
                                 help="把转换结果另存一份，便于本地预览")
         parser_ref.add_argument("--yes", action="store_true", help="确认正式发布")
+        parser_ref.add_argument("--edit-link", dest="edit_link", default="",
+                                help="改已有帖子：传它的 link_id")
 
     p_poll = sub.add_parser("poll", help="扫描自己帖子下的评论并放入待回复队列")
     p_poll.add_argument("--once", action="store_true", help="只跑一轮后退出")

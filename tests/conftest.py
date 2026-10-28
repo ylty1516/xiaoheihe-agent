@@ -559,3 +559,60 @@ def fake_llm_client_bad_then_good() -> _FakeLlmClient:
 @pytest.fixture
 def fake_llm_client_always_bad() -> _FakeLlmClient:
     return _FakeLlmClient(["综上所述，这个方案不错喵~"])
+
+
+# ── 发帖带图夹具 ────────────────────────────────────────────
+
+class _FakeCopyClient(ProtocolClient):
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        if "cos/copy/image" in url:
+            return RawResponse(
+                status=200,
+                data={
+                    "status": "ok",
+                    "result": {
+                        "url": "https://imgheybox.max-c.com/bbs/copied.jpg",
+                        "width": 1280,
+                        "height": 720,
+                    },
+                },
+            )
+        return RawResponse(status=200, data={"status": "ok", "result": {}})
+
+
+@pytest.fixture
+def fake_copy_client() -> ProtocolClient:
+    return _FakeCopyClient(
+        Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
+    )
+
+
+class _CapturingPostClientWithImages(ProtocolClient):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.captured: list[tuple] = []
+        self.copy_calls = 0
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        if "cos/copy/image" in url:
+            self.copy_calls += 1
+            return RawResponse(
+                status=200,
+                data={
+                    "status": "ok",
+                    "result": {
+                        "url": "https://imgheybox.max-c.com/bbs/copied.jpg",
+                        "width": 1280,
+                        "height": 720,
+                    },
+                },
+            )
+        self.captured.append((method, url, kwargs))
+        return RawResponse(status=200, data={"status": "ok", "result": {"link_id": "123"}})
+
+
+@pytest.fixture
+def fake_post_client_with_images() -> ProtocolClient:
+    return _CapturingPostClientWithImages(
+        Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
+    )

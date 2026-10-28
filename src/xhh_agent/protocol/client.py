@@ -68,6 +68,12 @@ TOPIC_SEARCH_PATH = "/bbs/app/api/post_editor/topic_selection/search"
 LINK_DELETE_PATH = "/bbs/app/link/delete"
 LINK_CHANGE_STATUS_PATH = "/bbs/app/link/change/status"
 
+IMAGE_COPY_PATH = "/bbs/app/api/qcloud/cos/copy/image/by/url"
+
+#: HTML 里的 <img src="...">。发帖前要把外部图片换成小黑盒 CDN 地址，
+#: 否则会被防盗链拦掉，帖子里只剩裂图。
+_IMG_TAG_RE = re.compile(r'<img[^>]*?src="([^"]+)"[^>]*>', re.IGNORECASE)
+
 #: 默认话题：PC游戏。实测有效，发帖必须有话题否则回"请添加分区"。
 DEFAULT_TOPIC_IDS = ("1",)
 
@@ -573,6 +579,88 @@ class ProtocolClient:
             )
         return messages
 
+    async def copy_image_by_url(self, image_url: str) -> dict[str, Any]:
+        """把外部图片转存到小黑盒 CDN，返回 {url, width, height}。
+
+        Steam / 官网的图直接外链基本会被盗链拦截，必须走这一步。
+        """
+        source = str(image_url or "").strip()
+        if not source.lower().startswith(("http://", "https://")):
+            raise ValueError(f"只支持 http(s) 图片地址：{source!r}")
+        url = self.build_api_url(
+            IMAGE_COPY_PATH,
+            {
+                "heybox_id": self.heybox_id,
+                "target_url": source,
+                "watermark": "false",
+            },
+        )
+        data = await self._request_json("GET", url)
+        if data.get("status") != "ok":
+            raise TransportError(f"图片转存失败：{_error_message(data, 'unknown')}")
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        copied = str(result.get("url") or result.get("preview_url") or "")
+        if not copied:
+            raise SchemaChanged("图片转存响应缺少 url")
+        try:
+            width = int(result.get("width") or 0)
+            height = int(result.get("height") or 0)
+        except (TypeError, ValueError):
+            width, height = 0, 0
+        if not width or not height:
+            # 转存接口不给尺寸时自己量：小黑盒排版依赖宽高，0 会显示异常
+            width, height = await self._probe_remote_size(copied)
+        return {"url": copied, "width": width, "height": height}
+
+    async def _probe_remote_size(self, image_url: str) -> tuple[int, int]:
+        """下载图片读一下尺寸。读不到就返回 (0, 0)，不阻断发帖。"""
+        try:
+            import io
+
+            from PIL import Image
+
+            timeout = aiohttp.ClientTimeout(total=25)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(image_url) as response:
+                    if response.status >= 400:
+                        return (0, 0)
+                    payload = await response.read()
+            with Image.open(io.BytesIO(payload)) as image:
+                return image.size
+        except Exception:  # noqa: BLE001 - 尺寸只是排版元数据
+            return (0, 0)
+
+    async def _prepare_images_in_html(
+        self, html: str
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """把 HTML 里的外部图片转存到 CDN，返回 (新 HTML, 图片列表)。
+
+        已经是小黑盒 CDN 的图不重复转存。
+        """
+        images: list[dict[str, Any]] = []
+        parts: list[str] = []
+        position = 0
+        for match in _IMG_TAG_RE.finditer(html):
+            src = match.group(1)
+            if "max-c.com" in src:
+                continue
+            parts.append(html[position : match.start()])
+            try:
+                info = await self.copy_image_by_url(src)
+            except XhhError as exc:
+                raise TransportError(f"图片转存失败（{src[:60]}）：{exc}") from exc
+            images.append(info)
+            width = info.get("width") or 0
+            height = info.get("height") or 0
+            parts.append(
+                f'<img data-description="" data-height="{height}" '
+                f'data-original="{info["url"]}" data-type="image" '
+                f'data-width="{width}"/>'
+            )
+            position = match.end()
+        parts.append(html[position:])
+        return "".join(parts), images
+
     async def delete_link(self, link_id: str) -> SendResult:
         """删除一条已发布的帖子。**不可逆**。
 
@@ -754,6 +842,7 @@ class ProtocolClient:
         topic_ids: tuple[str, ...] = (),
         desc: str = "",
         mode: str = "article",
+        edit_link_id: str = "",
     ) -> PostResult:
         """发帖或存草稿。
 
@@ -783,27 +872,44 @@ class ProtocolClient:
         topics = [str(t).strip() for t in topic_ids if str(t).strip()]
         is_article = mode == "article"
 
+        # 外部图片先转存到小黑盒 CDN，否则帖子里是裂图
+        body_html, images = await self._prepare_images_in_html(clean_body)
+        blocks: list[dict[str, Any]] = [
+            {"type": "html" if is_article else "text", "text": body_html}
+        ]
+        # 图片同时作为独立 img block 提交（web 端排版依赖这个）
+        for image in images:
+            blocks.append(
+                {
+                    "type": "img",
+                    "url": image["url"],
+                    "width": image.get("width") or 0,
+                    "height": image.get("height") or 0,
+                }
+            )
+
         body: dict[str, str] = {
             "title": clean_title,
             "desc": (str(desc or "").strip() or clean_title)[:100],
             "post_type": "1",
-            "text": json.dumps(
-                [{"type": "html" if is_article else "text", "text": clean_body}],
-                ensure_ascii=False,
-            ),
+            "text": json.dumps(blocks, ensure_ascii=False),
             "link_tag": str(LINK_TAG_ARTICLE if is_article else LINK_TAG_NORMAL),
         }
         if topics:
             body["topic_ids"] = ",".join(topics)
         if is_article:
             # 文章必需的四件套。缺了会回"错误的帖子类型#0001"
-            body["words_count"] = str(len(clean_body))
+            body["words_count"] = str(len(body_html))
             body["original"] = "1"
             body["declaration"] = "1"
             body["extra_declaration"] = "-1"
         if draft:
             body["draft"] = "1"
             body["view_limit"] = "1"
+        if edit_link_id:
+            # 改已有帖子：带 link_id + edit=1，否则会变成新建一条
+            body["link_id"] = str(edit_link_id).strip()
+            body["edit"] = "1"
 
         url = self.build_api_url(POST_PATH, {"heybox_id": self.heybox_id})
         data = await self._request_json(

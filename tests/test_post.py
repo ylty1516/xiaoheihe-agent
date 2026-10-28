@@ -102,3 +102,14 @@ async def test_failed_status_raises(fake_post_client_fail):
 
     with pytest.raises(TransportError, match="发帖"):
         await fake_post_client_fail.submit_post(title="标题", content="<p>x</p>")
+
+
+async def test_edit_mode_sends_link_id_and_edit_flag(fake_post_client):
+    """改已发布的帖子：要带 link_id 和 edit=1，否则会新建一条。"""
+    await fake_post_client.submit_post(
+        title="标题", content="<p>改过的正文</p>", draft=False,
+        topic_ids=("1",), mode="article", edit_link_id="195232074",
+    )
+    body = fake_post_client.captured[-1][2]["data"]
+    assert "link_id=195232074" in body
+    assert "edit=1" in body
