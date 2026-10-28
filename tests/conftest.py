@@ -218,7 +218,7 @@ class _CapturingDmClient(ProtocolClient):
 def fake_dm_client() -> ProtocolClient:
     return _CapturingDmClient(
         {"status": "ok", "result": {"msg_id": "12345"}},
-        Session(cookie="cookie=secret", heybox_id="85183285"),
+        Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
 
@@ -227,7 +227,7 @@ def fake_dm_client() -> ProtocolClient:
 def fake_dm_client_no_ack() -> ProtocolClient:
     return _CapturingDmClient(
         {"status": "ok", "result": {}},
-        Session(cookie="cookie=secret", heybox_id="85183285"),
+        Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
 
@@ -249,7 +249,7 @@ class _CapturingPostClient(ProtocolClient):
 def fake_post_client() -> ProtocolClient:
     return _CapturingPostClient(
         {"status": "ok", "result": {"link_id": "999888"}},
-        Session(cookie="cookie=secret", heybox_id="85183285"),
+        Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
 
@@ -258,7 +258,7 @@ def fake_post_client() -> ProtocolClient:
 def fake_post_client_fail() -> ProtocolClient:
     return _CapturingPostClient(
         {"status": "failed", "msg": "内容含违规信息"},
-        Session(cookie="cookie=secret", heybox_id="85183285"),
+        Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
 
@@ -274,7 +274,7 @@ class _FakeCosClient:
 
     @property
     def heybox_id(self) -> str:
-        return "85183285"
+        return "10000001"
 
     def build_api_url(self, path: str, params=None) -> str:
         return f"https://api.xiaoheihe.cn{path}"
@@ -364,6 +364,6 @@ class _CapturingReplyClient(ProtocolClient):
 def fake_reply_client() -> ProtocolClient:
     return _CapturingReplyClient(
         {"status": "ok", "result": {"comment_id": "888"}},
-        Session(cookie="cookie=secret", heybox_id="85183285"),
+        Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )
