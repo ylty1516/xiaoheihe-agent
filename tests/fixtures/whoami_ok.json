@@ -1,0 +1,10 @@
+{
+  "status": "ok",
+  "result": {
+    "user": {
+      "heybox_id": "83709585",
+      "username": "测试用户",
+      "level_info": { "level": 13 }
+    }
+  }
+}
