@@ -20,7 +20,7 @@ import aiohttp
 from xhh_agent.config import Config
 
 from .errors import LoginExpired, SchemaChanged, TransportError
-from .models import Account, InboxItem, InboxPage, QrPollResult, QrTicket
+from .models import Account, InboxItem, InboxPage, QrPollResult, QrTicket, SendResult
 from .session import Session
 from .signer import create_signed_params
 
@@ -48,6 +48,10 @@ WEB_CLIENT_PARAMS: dict[str, str] = {
 QRCODE_URL_PATH = "/account/get_qrcode_url/"
 QR_STATE_PATH = "/account/qr_state/"
 MESSAGE_PATH = "/bbs/app/user/message"
+DIRECT_MESSAGE_PATH = "/chatroom/v2/msg/user"
+
+#: 私信正文长度上限。规格 §5.7：回复上限 200 字，这里留宽一点供人工使用。
+DM_MAX_LENGTH = 500
 
 #: 评论类消息的 message_type。移植自上游 fetch_comment_messages。
 COMMENT_MESSAGE_TYPES = {"1", "2"}
@@ -230,11 +234,23 @@ def _collect_login_cookie(set_cookies: tuple[str, ...], existing: str) -> str:
     return _cookie_header_from_values(filtered)
 
 
+@dataclass(frozen=True)
+class DmRequest:
+    """一条待发送的私信请求。``url`` 里带 hkey，打印时必须脱敏。"""
+
+    to_user_id: str
+    text: str
+    url: str
+    body: dict[str, str]
+    headers: dict[str, str]
+
+
 class ProtocolClient:
     def __init__(self, session: Session, config: Config) -> None:
         self.session = session
         self.config = config
         self._http: aiohttp.ClientSession | None = None
+        self._ack_id: int | None = None
 
     # ── 基础设施 ────────────────────────────────────────────
 
@@ -346,6 +362,88 @@ class ProtocolClient:
                 except (TypeError, ValueError):
                     return None
         return None
+
+    def _form_headers(self) -> dict[str, str]:
+        """表单提交的头。Cookie 在 session 默认头里，这里不重复带。"""
+        return {
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "Origin": WEB_ORIGIN,
+            "Referer": f"{WEB_ORIGIN}/",
+        }
+
+    def _next_ack_id(self) -> int:
+        """发送回执序号。上游初值是时间戳取模，逐次自增。"""
+        if self._ack_id is None:
+            self._ack_id = int(time.time() * 1000) % 1_000_000_000
+        self._ack_id += 1
+        return self._ack_id
+
+    def build_dm_request(self, to_user_id: str, text: str) -> "DmRequest":
+        """构造私信请求但**不发送**。dry-run 与真发共用它，避免两边逻辑漂移。"""
+        target = str(to_user_id or "").strip()
+        content = str(text or "").strip()
+        if not target:
+            raise ValueError("缺少收件人 user_id")
+        if not content:
+            raise ValueError("私信内容为空，已取消发送")
+        if len(content) > DM_MAX_LENGTH:
+            raise ValueError(f"私信内容过长（{len(content)} 字，上限 {DM_MAX_LENGTH}）")
+
+        url = self.build_api_url(
+            DIRECT_MESSAGE_PATH,
+            {"to_user_id": target, "heybox_id": self.heybox_id},
+        )
+        body = {
+            "heybox_ack_id": str(self._next_ack_id()),
+            "img": "",
+            "msg": content,
+            "msg_type": "6",
+        }
+        return DmRequest(
+            to_user_id=target,
+            text=content,
+            url=url,
+            body=body,
+            headers=self._form_headers(),
+        )
+
+    async def send_dm(self, to_user_id: str, text: str) -> SendResult:
+        """发一条私信。
+
+        这是本项目第一个**写操作**。调用方负责确认内容与收件人——
+        发出去不可撤回。``xhh dm`` 默认 dry-run 就是为了先看清这两样。
+        """
+        target = str(to_user_id or "").strip()
+        content = str(text or "").strip()
+        if not target:
+            raise ValueError("缺少收件人 user_id")
+        if not content:
+            raise ValueError("私信内容为空，已取消发送")
+        if len(content) > DM_MAX_LENGTH:
+            raise ValueError(f"私信内容过长（{len(content)} 字，上限 {DM_MAX_LENGTH}）")
+
+        request = self.build_dm_request(target, content)
+        data = await self._request_json(
+            "POST",
+            request.url,
+            data=urlencode(request.body),
+            headers=request.headers,
+        )
+
+        if data.get("status") != "ok":
+            raise TransportError(f"私信发送失败：{_error_message(data, 'unknown')}")
+
+        result = data.get("result") if isinstance(data.get("result"), dict) else {}
+        ack_id = str(
+            result.get("heychat_ack_id") or result.get("msg_id") or result.get("msg_seq") or ""
+        )
+        if not ack_id:
+            raise TransportError(
+                "私信发送未返回 ack（heychat_ack_id/msg_id/msg_seq 均为空），"
+                "无法确认是否送达——不要假定成功。"
+            )
+        return SendResult(ok=True, ack_id=ack_id)
 
     # ── 收件箱（只读，P0 不回复任何内容）───────────────────
 

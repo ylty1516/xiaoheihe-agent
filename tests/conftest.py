@@ -199,3 +199,34 @@ class _FixedInboxClient(ProtocolClient):
 def fake_relogin_client() -> ProtocolClient:
     """cookie 有效但请求缺 web 客户端参数时，服务端回 status=relogin。"""
     return make_client(load_fixture("login_relogin.json"))
+
+
+# ── 私信发送夹具（捕获请求）──────────────────────────────────
+
+class _CapturingDmClient(ProtocolClient):
+    def __init__(self, payload: dict, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._payload = payload
+        self.captured: list[tuple] = []
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        self.captured.append((method, url, kwargs))
+        return RawResponse(status=200, data=self._payload)
+
+
+@pytest.fixture
+def fake_dm_client() -> ProtocolClient:
+    return _CapturingDmClient(
+        {"status": "ok", "result": {"msg_id": "12345"}},
+        Session(cookie="cookie=secret", heybox_id="85183285"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_dm_client_no_ack() -> ProtocolClient:
+    return _CapturingDmClient(
+        {"status": "ok", "result": {}},
+        Session(cookie="cookie=secret", heybox_id="85183285"),
+        load_config(),
+    )

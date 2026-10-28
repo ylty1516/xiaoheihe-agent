@@ -54,3 +54,16 @@ class QrPollResult:
     status: str                  # pending | ok
     session: object | None = None
     message: str = ""
+
+
+@dataclass(frozen=True)
+class SendResult:
+    """一次发送的结果。
+
+    ``ack_id`` 是服务端回执——没有它就无法确认是否真的送达，
+    所以发送层把"没有 ack"当作失败处理。
+    """
+
+    ok: bool
+    ack_id: str = ""
+    message: str = ""

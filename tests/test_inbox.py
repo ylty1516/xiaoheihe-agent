@@ -68,3 +68,47 @@ async def test_dm_peer_id_comes_from_message_id(fake_inbox_client):
     assert len(dm) == 1
     assert dm[0].sender_id == "34166294"
     assert dm[0].sender_name == "_Altria_"
+
+
+# ── 发送私信（P3 最小片段）──────────────────────────────────
+
+async def test_send_dm_posts_expected_form(fake_dm_client):
+    from xhh_agent.protocol.client import DIRECT_MESSAGE_PATH
+
+    result = await fake_dm_client.send_dm("84812994", "在不在")
+    assert result.ok
+    assert result.ack_id == "12345"
+
+    method, url, kwargs = fake_dm_client.captured[-1]
+    assert method == "POST"
+    assert DIRECT_MESSAGE_PATH in url
+    assert "to_user_id=84812994" in url
+    assert "msg_type=6" not in url          # msg_type 在 body 里，不在 query
+
+    body = kwargs["data"]
+    assert "msg=" in body and "%E5%9C%A8%E4%B8%8D%E5%9C%A8" in body   # "在不在"
+    assert "msg_type=6" in body
+    assert "heybox_ack_id=" in body
+    assert kwargs["headers"]["Content-Type"].startswith("application/x-www-form-urlencoded")
+
+
+async def test_send_dm_requires_ack(fake_dm_client_no_ack):
+    from xhh_agent.protocol.errors import TransportError
+
+    with pytest.raises(TransportError, match="ack"):
+        await fake_dm_client_no_ack.send_dm("84812994", "在不在")
+
+
+async def test_send_dm_rejects_empty_text(fake_dm_client):
+    with pytest.raises(ValueError, match="内容为空"):
+        await fake_dm_client.send_dm("84812994", "   ")
+
+
+async def test_send_dm_rejects_missing_target(fake_dm_client):
+    with pytest.raises(ValueError, match="收件人"):
+        await fake_dm_client.send_dm("", "在不在")
+
+
+async def test_send_dm_rejects_overlong_text(fake_dm_client):
+    with pytest.raises(ValueError, match="过长"):
+        await fake_dm_client.send_dm("84812994", "x" * 501)

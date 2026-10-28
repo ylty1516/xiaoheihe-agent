@@ -52,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_poll.add_argument("--once", action="store_true", help="只跑一轮后退出")
     p_poll.add_argument("--dry-run", action="store_true", help="不发送，只报告将要做什么")
 
+    p_dm = sub.add_parser("dm", help="发一条私信（默认 dry-run）")
+    p_dm.add_argument("--to", required=False, metavar="USER_ID", help="收件人 user_id")
+    p_dm.add_argument("--text", required=False, help="消息内容")
+    p_dm.add_argument("--send", action="store_true", help="真的发送（默认只打印）")
+
     p_q = sub.add_parser("queue", help="审核队列")
     p_q.add_argument("action", choices=["list", "show", "approve", "edit", "reject"])
     p_q.add_argument("id", nargs="?", help="队列条目 id")
@@ -80,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # 已实现的命令分派到这里（延迟导入，避免 CLI 启动就加载 aiohttp）
-    if args.command in ("login", "whoami", "doctor", "inbox"):
+    if args.command in ("login", "whoami", "doctor", "inbox", "dm"):
         from xhh_agent.config import load_config
 
         try:
@@ -95,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_whoami import main as handler
         elif args.command == "doctor":
             from xhh_agent.cli.cmd_doctor import main as handler
+        elif args.command == "dm":
+            from xhh_agent.cli.cmd_dm import main as handler
         else:
             from xhh_agent.cli.cmd_inbox import main as handler
         return handler(args, cfg)
