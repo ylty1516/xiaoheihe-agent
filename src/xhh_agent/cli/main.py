@@ -32,26 +32,41 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("login", help="扫码登录并持久化会话")
     sub.add_parser("whoami", help="验证会话是否有效")
     sub.add_parser("doctor", help="自检签名与接口连通性")
-    sub.add_parser("inbox", help="只读拉取未读消息（不回复）")
 
-    p_draft = sub.add_parser("draft", help="写入草稿（不发布）")
-    p_draft.add_argument("--md", metavar="FILE", help="Markdown 源文件")
-    p_draft.add_argument("--title", required=False, help="帖子标题")
-    p_draft.add_argument("--tag", type=int, default=11, help="分区 tag（默认 11）")
+    p_inbox = sub.add_parser("inbox", help="只读拉取未读消息（不回复）")
+    p_inbox.add_argument("-f", "--format", choices=["json", "table"], default="json")
+    p_inbox.add_argument("-n", "--limit", type=int, default=20)
 
-    p_pub = sub.add_parser("publish", help="正式发布（需 --yes）")
-    p_pub.add_argument("--md", metavar="FILE")
-    p_pub.add_argument("--title")
-    p_pub.add_argument("--tag", type=int, default=11)
-    p_pub.add_argument("--yes", action="store_true", help="确认发布")
+    for name, help_text in (
+        ("draft", "写入草稿（不公开）"),
+        ("publish", "正式发布（需 --yes）"),
+    ):
+        parser_ref = sub.add_parser(name, help=help_text)
+        parser_ref.add_argument("--md", metavar="FILE", help="Markdown 源文件")
+        parser_ref.add_argument("--html", metavar="FILE", help="已转换好的 HTML 源文件")
+        parser_ref.add_argument("--title", required=False, help="帖子标题")
+        parser_ref.add_argument("--tag", default=None, help="分区 ID（不给则用默认分区）")
+        parser_ref.add_argument("--html-out", dest="html_out", metavar="FILE",
+                                help="把转换结果另存一份，便于本地预览")
+        parser_ref.add_argument("--yes", action="store_true", help="确认正式发布")
 
-    p_poll = sub.add_parser("poll", help="执行一轮轮询")
+    p_poll = sub.add_parser("poll", help="扫描自己帖子下的评论并放入待回复队列")
     p_poll.add_argument("--once", action="store_true", help="只跑一轮后退出")
-    p_poll.add_argument("--dry-run", action="store_true", help="不发送，只报告将要做什么")
+    p_poll.add_argument("-n", "--limit", type=int, default=20, help="每次拉取的消息条数")
+
+    p_dm = sub.add_parser("dm", help="发一条私信（默认 dry-run）")
+    p_dm.add_argument("--to", required=False, metavar="USER_ID", help="收件人 user_id")
+    p_dm.add_argument("--text", required=False, help="消息内容")
+    p_dm.add_argument("--send", action="store_true", help="真的发送（默认只打印）")
 
     p_q = sub.add_parser("queue", help="审核队列")
-    p_q.add_argument("action", choices=["list", "show", "approve", "edit", "reject"])
+    p_q.add_argument("action", choices=["list", "show", "approve", "reject"])
     p_q.add_argument("id", nargs="?", help="队列条目 id")
+
+    p_rep = sub.add_parser("reply", help="回复队列里的评论（默认 dry-run）")
+    p_rep.add_argument("--queue-id", dest="queue_id", type=int, required=True)
+    p_rep.add_argument("--text", required=False, help="回复内容")
+    p_rep.add_argument("--send", action="store_true", help="真的发送")
 
     return p
 
@@ -75,6 +90,49 @@ def main(argv: list[str] | None = None) -> int:
     if not args.command:
         build_parser().print_help()
         return 0
+
+    # 已实现的命令分派到这里（延迟导入，避免 CLI 启动就加载 aiohttp）
+    if args.command in (
+        "login",
+        "whoami",
+        "doctor",
+        "inbox",
+        "dm",
+        "draft",
+        "publish",
+        "poll",
+        "queue",
+        "reply",
+    ):
+        from xhh_agent.config import load_config
+
+        try:
+            cfg = load_config()
+        except ValueError as exc:
+            print(f"配置错误：{exc}", file=sys.stderr)
+            return 2
+
+        if args.command == "login":
+            from xhh_agent.cli.cmd_login import main as handler
+        elif args.command == "whoami":
+            from xhh_agent.cli.cmd_whoami import main as handler
+        elif args.command == "doctor":
+            from xhh_agent.cli.cmd_doctor import main as handler
+        elif args.command == "dm":
+            from xhh_agent.cli.cmd_dm import main as handler
+        elif args.command == "draft":
+            from xhh_agent.cli.cmd_post import draft_main as handler
+        elif args.command == "publish":
+            from xhh_agent.cli.cmd_post import publish_main as handler
+        elif args.command == "poll":
+            from xhh_agent.cli.cmd_reply import poll_main as handler
+        elif args.command == "queue":
+            from xhh_agent.cli.cmd_reply import queue_main as handler
+        elif args.command == "reply":
+            from xhh_agent.cli.cmd_reply import reply_main as handler
+        else:
+            from xhh_agent.cli.cmd_inbox import main as handler
+        return handler(args, cfg)
 
     stage = _STAGES.get(args.command, "未规划")
     print(f"命令 `{args.command}` 属于 {stage}，尚未实现。", file=sys.stderr)

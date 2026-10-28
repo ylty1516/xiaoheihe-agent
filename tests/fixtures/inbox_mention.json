@@ -1,0 +1,16 @@
+{
+  "status": "ok",
+  "result": {
+    "messages": [
+      {
+        "message_id": "2001",
+        "message_type": "16",
+        "timestamp": "1750000200",
+        "user_a": { "heybox_id": "333", "username": "路人丙" },
+        "comment_a_text": "@我 你看过这个吗",
+        "comment_a_id": "9003",
+        "link": { "linkid": "def456", "title": "另一个帖子" }
+      }
+    ]
+  }
+}

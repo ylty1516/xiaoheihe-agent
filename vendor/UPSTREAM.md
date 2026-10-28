@@ -62,3 +62,9 @@
 
 Apache-2.0 → MIT 是单向兼容：可以引入 Apache-2.0 代码到 MIT 项目中，但被引入的
 文件需保留 Apache-2.0 声明，整体分发时需附带 NOTICE。
+
+## 已 pin 的上游版本
+
+- **commit**: `534b9479e9bebe4ef82d9ec959d0c11146c90078`
+- **日期**: 2026-07-26
+- **文件**: `xhh_client.py`、`LICENSE`（副本位于 `vendor/upstream/`，已 gitignore）

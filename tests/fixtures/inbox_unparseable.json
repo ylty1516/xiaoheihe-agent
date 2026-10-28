@@ -1,0 +1,16 @@
+{
+  "status": "ok",
+  "result": {
+    "messages": [
+      {
+        "message_id": "4001",
+        "message_type": "1",
+        "timestamp": "1750000400",
+        "user_a": { "heybox_id": "555", "username": "改名了" },
+        "comment_a_text": "字段被改名了",
+        "renamed_comment_id": "9999",
+        "link": { "renamed_linkid": "zzz" }
+      }
+    ]
+  }
+}

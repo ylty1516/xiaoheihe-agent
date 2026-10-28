@@ -1,0 +1,19 @@
+{
+  "status": "ok",
+  "result": {
+    "messages": [
+      {
+        "message_id": 34166294,
+        "entry": "message",
+        "count": 0,
+        "timestamp": 1750000300,
+        "user_a": {
+          "avartar": "https://imgheybox.max-c.com/x.png",
+          "border": 2,
+          "username": "_Altria_"
+        },
+        "text": "我们已互相关注，一起聊聊吧！"
+      }
+    ]
+  }
+}

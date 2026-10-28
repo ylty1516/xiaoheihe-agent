@@ -1,0 +1,38 @@
+{
+  "status": "ok",
+  "result": {
+    "messages": [
+      {
+        "message_id": "1001",
+        "message_type": "1",
+        "timestamp": "1750000000",
+        "user_a": {
+          "heybox_id": "111",
+          "username": "路人甲"
+        },
+        "comment_a_text": "这个攻略写得不错",
+        "comment_a_id": "9001",
+        "link": {
+          "linkid": "abc123",
+          "title": "某游戏攻略"
+        },
+        "comment_b_text": "光驱版和数字版你选哪个"
+      },
+      {
+        "message_id": "",
+        "message_type": "2",
+        "timestamp": "1750000100",
+        "user_a": {
+          "heybox_id": "222",
+          "username": "路人乙"
+        },
+        "comment_text": "同意楼上",
+        "comment_a_id": "9002",
+        "link": {
+          "linkid": "abc123",
+          "title": "某游戏攻略"
+        }
+      }
+    ]
+  }
+}
