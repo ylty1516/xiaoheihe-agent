@@ -631,9 +631,9 @@ class HeyBoxConverter:
         return re.sub(r"<img\b[^>]*>", replace_img, html, flags=re.IGNORECASE)
 
     def _resolve_image_source(self, src: str) -> Optional[str]:
-        if not self._inline_images and str(src or "").lower().startswith(("http://", "https://")):
-            # 保留原始 URL，交给发帖层转存
-            return src
+        if not self._inline_images:
+            # 关闭内联时一律保留原样：http 交给转存，本地路径交给上传
+            return str(src or "")
         src = html_lib.unescape((src or "").strip())
         if not src:
             return None

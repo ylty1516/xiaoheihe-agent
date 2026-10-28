@@ -109,3 +109,10 @@ def test_plain_code_block_keeps_content():
     out = markdown_to_plain("```python\nprint(1)\n```")
     assert "print(1)" in out
     assert "```" not in out
+
+
+def test_local_image_path_not_inlined():
+    """本地 gif 不能被转成 base64——一张动图能撑到 3 万字符，而且发帖会被拒。"""
+    out = markdown_to_heybox_html("![动图](.data/x.gif)")
+    assert ".data/x.gif" in out
+    assert "data:image/" not in out
