@@ -1,0 +1,15 @@
+{
+  "status": "ok",
+  "result": {
+    "messages": [
+      {
+        "message_id": "3001",
+        "entry": "message",
+        "message_type": "6",
+        "timestamp": "1750000300",
+        "user_a": { "heybox_id": "444", "username": "私信者" },
+        "msg": "在吗，想请教个问题"
+      }
+    ]
+  }
+}

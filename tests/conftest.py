@@ -91,3 +91,27 @@ def fake_qr_client() -> ProtocolClient:
         Session(cookie="", heybox_id=""),
         load_config(),
     )
+
+
+# ── inbox 夹具 ──────────────────────────────────────────────
+
+class _FakeInboxClient(ProtocolClient):
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        if "list_type=2" in url:
+            return RawResponse(status=200, data=load_fixture("inbox_dm.json"))
+        if "message_type=16" in url:
+            return RawResponse(status=200, data=load_fixture("inbox_mention.json"))
+        return RawResponse(status=200, data=load_fixture("inbox_comment.json"))
+
+
+@pytest.fixture
+def fake_inbox_client() -> ProtocolClient:
+    return _FakeInboxClient(
+        Session(cookie="cookie=secret", heybox_id="83709585"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_broken_schema_client() -> ProtocolClient:
+    return make_client(load_fixture("whoami_empty.json"))

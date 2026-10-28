@@ -32,7 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("login", help="扫码登录并持久化会话")
     sub.add_parser("whoami", help="验证会话是否有效")
     sub.add_parser("doctor", help="自检签名与接口连通性")
-    sub.add_parser("inbox", help="只读拉取未读消息（不回复）")
+
+    p_inbox = sub.add_parser("inbox", help="只读拉取未读消息（不回复）")
+    p_inbox.add_argument("-f", "--format", choices=["json", "table"], default="json")
+    p_inbox.add_argument("-n", "--limit", type=int, default=20)
 
     p_draft = sub.add_parser("draft", help="写入草稿（不发布）")
     p_draft.add_argument("--md", metavar="FILE", help="Markdown 源文件")
@@ -77,8 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # 已实现的命令分派到这里（延迟导入，避免 CLI 启动就加载 aiohttp）
-    if args.command == "login":
-        from xhh_agent.cli.cmd_login import main as login_main
+    if args.command in ("login", "inbox"):
         from xhh_agent.config import load_config
 
         try:
@@ -86,7 +88,12 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(f"配置错误：{exc}", file=sys.stderr)
             return 2
-        return login_main(args, cfg)
+
+        if args.command == "login":
+            from xhh_agent.cli.cmd_login import main as handler
+        else:
+            from xhh_agent.cli.cmd_inbox import main as handler
+        return handler(args, cfg)
 
     stage = _STAGES.get(args.command, "未规划")
     print(f"命令 `{args.command}` 属于 {stage}，尚未实现。", file=sys.stderr)

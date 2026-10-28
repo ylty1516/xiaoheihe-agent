@@ -19,7 +19,7 @@ import aiohttp
 from xhh_agent.config import Config
 
 from .errors import LoginExpired, SchemaChanged, TransportError
-from .models import Account, QrPollResult, QrTicket
+from .models import Account, InboxItem, InboxPage, QrPollResult, QrTicket
 from .session import Session
 from .signer import create_signed_params
 
@@ -30,6 +30,23 @@ WEB_ORIGIN = "https://www.xiaoheihe.cn"
 
 QRCODE_URL_PATH = "/account/get_qrcode_url/"
 QR_STATE_PATH = "/account/qr_state/"
+MESSAGE_PATH = "/bbs/app/user/message"
+
+#: 评论类消息的 message_type。移植自上游 fetch_comment_messages。
+COMMENT_MESSAGE_TYPES = {"1", "2"}
+
+#: 回复目标 ID 的候选字段名（上游用深度搜索）。
+_REPLY_ID_KEYS = (
+    "comment_id",
+    "commentid",
+    "commentId",
+    "comment_a_id",
+    "replyid",
+    "reply_id",
+    "cid",
+)
+
+_TAG_RE = re.compile(r"<[^>]+>")
 
 #: 登录需要保留的 cookie。移植自上游 LOGIN_COOKIE_NAMES。
 LOGIN_COOKIE_NAMES = {
@@ -113,6 +130,64 @@ def _merge_cookie_headers(*headers: str) -> str:
             if value:
                 values[name] = value
     return _cookie_header_from_values(values)
+
+
+def _strip_html(value: str) -> str:
+    return _TAG_RE.sub("", value).replace("&nbsp;", " ").strip()
+
+
+def _link_id_of(message: dict[str, Any]) -> str:
+    for key in ("link", "target"):
+        container = message.get(key)
+        if isinstance(container, dict):
+            for field in ("linkid", "link_id"):
+                if container.get(field):
+                    return str(container[field])
+    for field in ("linkid", "link_id"):
+        if message.get(field):
+            return str(message[field])
+    return ""
+
+
+def _message_text(message: dict[str, Any]) -> str:
+    for key in ("comment_a_text", "comment_text", "msg", "text", "content"):
+        value = message.get(key)
+        if value:
+            return _strip_html(str(value))
+    return ""
+
+
+def _message_timestamp(message: dict[str, Any]) -> int:
+    raw = message.get("timestamp") or message.get("time")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise SchemaChanged(f"消息时间戳不是数字：{raw!r}") from None
+    if value <= 0:
+        raise SchemaChanged(f"消息时间戳无效：{raw!r}")
+    # 兼容毫秒
+    return int(value / 1000) if value > 100_000_000_000 else int(value)
+
+
+def _find_deep(node: Any, keys: tuple[str, ...], depth: int = 3) -> str:
+    """深度优先查找第一个非空字段。上游用同类做法应对嵌套结构差异。"""
+    if depth < 0:
+        return ""
+    if isinstance(node, dict):
+        for key in keys:
+            value = node.get(key)
+            if value:
+                return str(value)
+        for value in node.values():
+            found = _find_deep(value, keys, depth - 1)
+            if found:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_deep(item, keys, depth - 1)
+            if found:
+                return found
+    return ""
 
 
 def _collect_login_cookie(set_cookies: tuple[str, ...], existing: str) -> str:
@@ -236,6 +311,117 @@ class ProtocolClient:
             heybox_id=heybox_id,
             username=str(user.get("username") or ""),
             level=level,
+        )
+
+    # ── 收件箱（只读，P0 不回复任何内容）───────────────────
+
+    async def fetch_inbox(self, *, limit: int = 20) -> InboxPage:
+        """拉取三类消息：评论 / @提及 / 私信。
+
+        自己的消息会被过滤掉——不回复自己是最低要求。
+        """
+        items: list[InboxItem] = []
+        items.extend(await self._fetch_message_channel("", "comment", limit))
+        items.extend(await self._fetch_message_channel("16", "mention", limit))
+        items.extend(await self._fetch_direct_message_channel(limit))
+        return InboxPage(items=[item for item in items if item.sender_id != self.heybox_id])
+
+    async def _fetch_message_list(
+        self, *, message_type: str, limit: int, list_type: str = "0"
+    ) -> list[dict[str, Any]]:
+        url = self.build_api_url(
+            MESSAGE_PATH,
+            {
+                "message_type": message_type,
+                "list_type": list_type,
+                "offset": "0",
+                "limit": str(limit),
+            },
+        )
+        data = await self._request_json("GET", url)
+        result = data.get("result")
+        if not isinstance(result, dict) or "messages" not in result:
+            raise SchemaChanged(
+                f"{MESSAGE_PATH} 响应缺少 result.messages。这是接口结构变更，"
+                "不是'没有新消息'——请核对后再更新解析逻辑。"
+            )
+        messages = result.get("messages")
+        if not isinstance(messages, list):
+            raise SchemaChanged(f"{MESSAGE_PATH} 的 result.messages 不是数组")
+        return [message for message in messages if isinstance(message, dict)]
+
+    async def _fetch_message_channel(
+        self, message_type: str, channel: str, limit: int
+    ) -> list[InboxItem]:
+        items: list[InboxItem] = []
+        for message in await self._fetch_message_list(message_type=message_type, limit=limit):
+            if channel == "comment" and str(
+                message.get("message_type") or ""
+            ) not in COMMENT_MESSAGE_TYPES:
+                continue
+            item = self._to_comment_item(message, channel)
+            if item is not None:
+                items.append(item)
+        return items
+
+    async def _fetch_direct_message_channel(self, limit: int) -> list[InboxItem]:
+        items: list[InboxItem] = []
+        messages = await self._fetch_message_list(
+            message_type="", limit=limit, list_type="2"
+        )
+        for message in messages:
+            if str(message.get("entry") or "") != "message":
+                continue
+            item = self._to_dm_item(message)
+            if item is not None:
+                items.append(item)
+        return items
+
+    def _to_comment_item(self, message: dict[str, Any], channel: str) -> InboxItem | None:
+        link_id = _link_id_of(message)
+        reply_id = _find_deep(message, _REPLY_ID_KEYS)
+        if not link_id or not reply_id:
+            # 没有回复目标就无法回复，跳过而不是崩溃
+            return None
+
+        user = message.get("user_a") if isinstance(message.get("user_a"), dict) else {}
+        sender_id = str(user.get("heybox_id") or user.get("userid") or "")
+        sender_name = str(user.get("username") or user.get("nickname") or sender_id)
+
+        # message_id 缺失时兜底。注意：同一 reply 下的多条消息会撞键，
+        # 所以 raw_message_type 必须保留，供 P2 的幂等键区分。
+        message_id = str(message.get("message_id") or "") or f"{link_id}:{reply_id}"
+
+        return InboxItem(
+            channel=channel,
+            message_id=message_id,
+            sender_id=sender_id,
+            sender_name=sender_name,
+            text=_message_text(message),
+            timestamp=_message_timestamp(message),
+            raw_message_type=str(message.get("message_type") or ""),
+            link_id=link_id,
+            reply_id=reply_id,
+            root_id=reply_id,
+        )
+
+    def _to_dm_item(self, message: dict[str, Any]) -> InboxItem | None:
+        user = message.get("user_a") if isinstance(message.get("user_a"), dict) else {}
+        sender_id = str(user.get("heybox_id") or user.get("userid") or "")
+        if not sender_id:
+            return None
+        sender_name = str(user.get("username") or user.get("nickname") or sender_id)
+        timestamp = _message_timestamp(message)
+        message_id = str(message.get("message_id") or "") or f"dm:{sender_id}:{timestamp}"
+
+        return InboxItem(
+            channel="dm",
+            message_id=message_id,
+            sender_id=sender_id,
+            sender_name=sender_name,
+            text=_message_text(message),
+            timestamp=timestamp,
+            raw_message_type=str(message.get("message_type") or ""),
         )
 
     def build_login_url(self, path: str, params: dict[str, Any] | None = None) -> str:
