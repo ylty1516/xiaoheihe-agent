@@ -87,3 +87,20 @@ async def test_submit_handles_local_image_path(fake_post_client_with_images):
         assert "imgheybox.max-c.com" in text_json
     finally:
         p.unlink(missing_ok=True)
+
+
+async def test_remote_gif_is_downloaded_then_uploaded(fake_post_client_with_images):
+    """动图不能走转存（小黑盒服务器访问不了多数图源），
+    改成"我下载 → 我上传"。
+
+    实测：giphy 的 741KB/33 帧 gif 下载后上传成功，返回 .gif URL。
+    """
+    html = '<p>x</p><img src="https://media.giphy.com/media/abc/giphy.gif"/>'
+    await fake_post_client_with_images.submit_post(
+        title="标题", content=html, draft=True, topic_ids=("1",), mode="article"
+    )
+    # 应该走上传而不是转存
+    assert fake_post_client_with_images.upload_calls >= 1
+    body = fake_post_client_with_images.captured[-1][2]["data"]
+    text_json = __import__("urllib.parse", fromlist=["unquote_plus"]).unquote_plus(body)
+    assert "imgheybox.max-c.com" in text_json

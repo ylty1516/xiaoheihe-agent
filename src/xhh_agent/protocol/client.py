@@ -778,6 +778,58 @@ class ProtocolClient:
         except Exception:  # noqa: BLE001 - 尺寸只是排版元数据
             return (0, 0)
 
+    async def download_image(self, url: str) -> tuple[bytes, str]:
+        """下载一张图，返回 (字节, 探测到的 mimetype)。
+
+        **为什么需要这一步**：小黑盒的转存接口由他们的服务器去拉外链，
+        多数图床它访问不了（实测 Wikimedia/giphy 都超时）。而我们这边
+        能访问，所以改成「我下载 → 我上传」，动图也就能发了喵。
+        """
+        source = str(url or "").strip()
+        if not source.lower().startswith(("http://", "https://")):
+            raise ValueError(f"只支持 http(s) 图片地址：{source!r}")
+        timeout = aiohttp.ClientTimeout(total=45)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(source) as response:
+                if response.status >= 400:
+                    raise TransportError(f"下载图片失败：HTTP {response.status}")
+                payload = await response.read()
+                mimetype = str(response.headers.get("Content-Type") or "").split(";")[0]
+        if not payload:
+            raise TransportError("下载到的图片是空的")
+
+        # 用文件头兜底判断，不信任 Content-Type
+        # 用文件头兜底判断，不信任 Content-Type
+        head = payload[:12]
+        if head[:6] in (b"GIF89a", b"GIF87a"):
+            mimetype = "image/gif"
+        elif head[:8] == bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]):
+            mimetype = "image/png"
+        elif head[:3] == bytes([0xFF, 0xD8, 0xFF]):
+            mimetype = "image/jpeg"
+        elif head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+            mimetype = "image/webp"
+        elif not mimetype.startswith("image/"):
+            mimetype = "image/png"
+        return payload, mimetype
+
+    async def upload_image_bytes(
+        self,
+        *,
+        data: bytes,
+        name: str,
+        mimetype: str,
+        width: int = 0,
+        height: int = 0,
+    ) -> dict[str, Any]:
+        """按字节上传到小黑盒 CDN。gif 走这里才能保住动画。"""
+        from .cos_upload import CosUploader
+
+        url = await CosUploader(self).upload(
+            data=data, name=name, mimetype=mimetype, width=width, height=height
+        )
+        return {"url": url, "width": width, "height": height}
+
     async def upload_local_image(self, path: Any) -> dict[str, Any]:
         """上传本地图片（支持 gif 动图）到小黑盒 CDN。
 
@@ -832,9 +884,26 @@ class ProtocolClient:
                 continue
             parts.append(html[position : match.start()])
             try:
-                # 本地路径走 COS 上传（gif 动图只能这么发）
                 if src.lower().startswith(("http://", "https://")):
-                    info = await self.copy_image_by_url(src)
+                    # 外链一律「下载 → 上传」：转存接口访问不了多数图源，
+                    # 而且转存会丢掉 gif 动画喵
+                    payload, mimetype = await self.download_image(src)
+                    try:
+                        from PIL import Image
+                        import io
+
+                        with Image.open(io.BytesIO(payload)) as image:
+                            width, height = image.size
+                    except Exception:
+                        width, height = 0, 0
+                    suffix = mimetype.split("/")[-1] or "png"
+                    info = await self.upload_image_bytes(
+                        data=payload,
+                        name=f"web.{suffix}",
+                        mimetype=mimetype,
+                        width=width,
+                        height=height,
+                    )
                 else:
                     info = await self.upload_local_image(src)
             except (XhhError, ValueError) as exc:

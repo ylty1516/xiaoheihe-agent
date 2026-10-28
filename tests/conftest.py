@@ -592,6 +592,22 @@ class _CapturingPostClientWithImages(ProtocolClient):
         super().__init__(*args, **kwargs)
         self.captured: list[tuple] = []
         self.copy_calls = 0
+        self.upload_calls = 0
+
+    async def download_image(self, url: str):
+        """假的下载：返回一张 100x50 的 png 字节。"""
+        import io
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (100, 50), (10, 20, 30)).save(buf, format="PNG")
+        return buf.getvalue(), "image/png"
+
+    async def upload_image_bytes(self, *, data, name, mimetype, width, height):
+        self.upload_calls += 1
+        return {"url": "https://imgheybox.max-c.com/web/bbs/up.gif",
+                "width": width, "height": height}
 
     async def _put_cos_object(self, **kwargs) -> None:
         return None
