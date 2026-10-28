@@ -281,6 +281,20 @@ class DmRequest:
     headers: dict[str, str]
 
 
+def _link_tag_for(topics: list[str]) -> int:
+    """帖子类型跟着分区走。
+
+    实测组合错误会直接被拒：
+    - 无分区 → 服务端回"请添加分区"，所以草稿能过、正式发布不行
+    - 文章型(11) 配分区 → 回"错误的动态类型"
+    """
+    if not topics:
+        return LINK_TAG_ARTICLE
+    if topics == [DEFAULT_TOPIC_ID]:
+        return LINK_TAG_DEFAULT_TOPIC
+    return LINK_TAG_NORMAL
+
+
 class ProtocolClient:
     def __init__(self, session: Session, config: Config) -> None:
         self.session = session
@@ -609,25 +623,27 @@ class ProtocolClient:
 
         topics = [str(t).strip() for t in topic_ids if str(t).strip()]
 
-        # 正文以 block 数组形式提交。小黑盒 web 端用 type=html 承载富文本。
-        blocks = [{"type": "html", "text": clean_html}]
+        # 正文以 block 数组提交。**type 必须是 "text"**：用 "html" 时
+        # 正式发布会回"错误的帖子类型#0001"（草稿模式不报错，所以只在真发时暴露）。
+        # 实测过的唯一可行组合：post_type=1 + link_tag=27 + topic_ids + type=text
+        blocks = [{"type": "text", "text": clean_html}]
+        # post_type=1（普通动态）的字段集。
+        # declaration / original / words_count / extra_declaration 是**文章**
+        # （post_type=2）才需要的；把它们塞进普通动态，正式发布会回
+        # "错误的帖子类型#0001"。草稿模式下服务端宽容，所以之前没暴露。
         body: dict[str, str] = {
             "text": json.dumps(blocks, ensure_ascii=False),
             "title": clean_title,
             "desc": (str(desc or "").strip() or clean_title)[:100],
             "post_type": "1",
-            "link_tag": str(LINK_TAG_ARTICLE),
-            # 下面四个字段是必需的：缺了服务端回"错误的帖子类型#0001"。
-            # 取自已验证可发布的 xiaoheihe-cli。
-            "words_count": str(len(clean_html)),
-            "original": "1",
-            "declaration": "1",
-            "extra_declaration": "-1",
-            "draft": "1" if draft else "0",
-            "view_limit": "1",
+            "link_tag": str(_link_tag_for(topics)),
         }
         if topics:
             body["topic_ids"] = ",".join(topics)
+        # view_limit / draft 只在草稿时带：正式发布的字段集里没有它们
+        if draft:
+            body["draft"] = "1"
+            body["view_limit"] = "1"
 
         url = self.build_api_url(POST_PATH, {"heybox_id": self.heybox_id})
         data = await self._request_json(

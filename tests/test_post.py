@@ -38,18 +38,32 @@ async def test_html_is_wrapped_in_blocks(fake_post_client):
     await fake_post_client.submit_post(title="标题", html="<p>正文</p>", draft=True)
     _, _, kwargs = fake_post_client.captured[-1]
     body = kwargs["data"]
-    # text 字段是 JSON 化的 block 数组
-    assert "%22type%22" in body and "html" in body
+    # text 字段是 JSON 化的 block 数组，且 type 必须是 text 不是 html
+    assert "%22type%22" in body
+    assert "%22type%22%3A+%22text%22" in body or '"type": "text"' in body
 
 
-async def test_required_declaration_fields_present(fake_post_client):
-    """缺任何一个，服务端都回"错误的帖子类型#0001"。"""
+async def test_article_only_fields_not_sent_for_normal_post(fake_post_client):
+    """declaration/original 是文章(post_type=2)的字段。
+
+    塞进普通动态，正式发布会回"错误的帖子类型#0001"——
+    草稿模式下服务端宽容，所以这个错只在真发布时暴露。
+    """
     await fake_post_client.submit_post(title="标题", html="<p>正文</p>", draft=True)
     _, _, kwargs = fake_post_client.captured[-1]
     body = kwargs["data"]
-    for field in ("declaration=1", "original=1", "extra_declaration=-1", "words_count="):
-        assert field in body, f"缺少 {field}"
+    for field in ("declaration=", "original=", "extra_declaration="):
+        assert field not in body, f"不该发送 {field}"
     assert "link_tag=11" in body
+
+
+async def test_publish_omits_draft_and_view_limit(fake_post_client):
+    """正式发布的字段集里没有 draft / view_limit。"""
+    await fake_post_client.submit_post(title="标题", html="<p>正文</p>", draft=False)
+    _, _, kwargs = fake_post_client.captured[-1]
+    body = kwargs["data"]
+    assert "draft=" not in body
+    assert "view_limit=" not in body
 
 
 async def test_empty_title_rejected(fake_post_client):
