@@ -20,7 +20,7 @@ import aiohttp
 
 from xhh_agent.config import Config
 
-from .errors import LoginExpired, SchemaChanged, TransportError
+from .errors import LoginExpired, SchemaChanged, TransportError, XhhError
 from .models import (
     Account,
     DmMessage,
@@ -707,6 +707,44 @@ class ProtocolClient:
         except Exception:  # noqa: BLE001 - 尺寸只是排版元数据
             return (0, 0)
 
+    async def upload_local_image(self, path: Any) -> dict[str, Any]:
+        """上传本地图片（支持 gif 动图）到小黑盒 CDN。
+
+        这是**唯一能发动的路**：外链转存接口访问不了多数图源
+        （Wikimedia 直接超时），但本地文件上传 COS 完全正常，
+        返回的 URL 是 .gif 且 content-type 正确。
+        """
+        import mimetypes
+        from pathlib import Path
+
+        from PIL import Image
+
+        from .cos_upload import CosUploader
+
+        file_path = Path(str(path))
+        if not file_path.exists():
+            raise ValueError(f"本地图片不存在：{file_path}")
+        if not file_path.is_file():
+            raise ValueError(f"不是文件：{file_path}")
+
+        mimetype = mimetypes.guess_type(str(file_path))[0] or "image/png"
+        if not mimetype.startswith("image/"):
+            raise ValueError(f"不支持的类型：{mimetype}")
+        try:
+            with Image.open(file_path) as image:
+                width, height = image.size
+        except Exception:
+            width, height = 0, 0
+
+        url = await CosUploader(self).upload(
+            data=file_path.read_bytes(),
+            name=file_path.name,
+            mimetype=mimetype,
+            width=width,
+            height=height,
+        )
+        return {"url": url, "width": width, "height": height}
+
     async def _prepare_images_in_html(
         self, html: str
     ) -> tuple[str, list[dict[str, Any]]]:
@@ -723,9 +761,13 @@ class ProtocolClient:
                 continue
             parts.append(html[position : match.start()])
             try:
-                info = await self.copy_image_by_url(src)
-            except XhhError as exc:
-                raise TransportError(f"图片转存失败（{src[:60]}）：{exc}") from exc
+                # 本地路径走 COS 上传（gif 动图只能这么发）
+                if src.lower().startswith(("http://", "https://")):
+                    info = await self.copy_image_by_url(src)
+                else:
+                    info = await self.upload_local_image(src)
+            except (XhhError, ValueError) as exc:
+                raise TransportError(f"图片处理失败（{src[:60]}）：{exc}") from exc
             images.append(info)
             width = info.get("width") or 0
             height = info.get("height") or 0

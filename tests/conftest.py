@@ -593,7 +593,20 @@ class _CapturingPostClientWithImages(ProtocolClient):
         self.captured: list[tuple] = []
         self.copy_calls = 0
 
+    async def _put_cos_object(self, **kwargs) -> None:
+        return None
+
     async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        if "upload/info" in url:
+            return RawResponse(status=200, data={"status": "ok", "result": {
+                "bucket": "b-1250000000", "region": "ap-shanghai", "keys": ["k.gif"]}})
+        if "upload/token" in url:
+            return RawResponse(status=200, data={"status": "ok", "result": {
+                "startTime": 1700000000, "expiredTime": 1700000300,
+                "credentials": {"tmpSecretId": "AKID", "tmpSecretKey": "S", "sessionToken": "T"}}})
+        if "upload/callback" in url:
+            return RawResponse(status=200, data={"status": "ok", "result": {
+                "preview_urls": ["https://imgheybox.max-c.com/web/bbs/k.gif"]}})
         if "cos/copy/image" in url:
             self.copy_calls += 1
             return RawResponse(
@@ -660,5 +673,60 @@ class _FakeHotClient(ProtocolClient):
 @pytest.fixture
 def fake_hot_client() -> ProtocolClient:
     return _FakeHotClient(
+        Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
+    )
+
+
+class _FakeUploadClient(ProtocolClient):
+    """COS 三段上传的假实现：info → token → PUT → callback。"""
+
+    async def _raw_request(self, method: str, url: str, **kwargs):  # type: ignore[override]
+        if "upload/info" in url:
+            return RawResponse(
+                status=200,
+                data={
+                    "status": "ok",
+                    "result": {
+                        "bucket": "bucket-1250000000",
+                        "region": "ap-shanghai",
+                        "keys": ["web/bbs/x.gif"],
+                    },
+                },
+            )
+        if "upload/token" in url:
+            return RawResponse(
+                status=200,
+                data={
+                    "status": "ok",
+                    "result": {
+                        "startTime": 1700000000,
+                        "expiredTime": 1700000300,
+                        "credentials": {
+                            "tmpSecretId": "AKID",
+                            "tmpSecretKey": "SECRET",
+                            "sessionToken": "TOKEN",
+                        },
+                    },
+                },
+            )
+        if "upload/callback" in url:
+            return RawResponse(
+                status=200,
+                data={
+                    "status": "ok",
+                    "result": {
+                        "preview_urls": ["https://imgheybox.max-c.com/web/bbs/x.gif"]
+                    },
+                },
+            )
+        return RawResponse(status=200, data={"status": "ok", "result": {}})
+
+    async def _put_cos_object(self, **kwargs) -> None:
+        return None
+
+
+@pytest.fixture
+def fake_upload_client() -> ProtocolClient:
+    return _FakeUploadClient(
         Session(cookie="cookie=secret", heybox_id="10000001"), load_config()
     )

@@ -155,6 +155,14 @@ fetch_content("https://github.com/trending")
 游戏：`钩子（观察/反常识结论）→ 具体信息 3-4 段 → 我的判断 1 段 → 抛问题`
 GitHub：`这是什么（说人话）→ 解决什么痛点 → 我试没试（要诚实）→ 值不值得上手 → 抛问题`
 
+### 配图（至少 3 张，能动就动）
+
+- **至少 3 张图**，低于这个数不发
+- Steam 图直接写 URL（`https://cdn.akamai.steamstatic.com/steam/apps/<appid>/library_hero.jpg`）
+- **动图只能本地造或本地文件**——外链 gif 转存必失败
+- 造动图：`py scripts/make_gif.py --out .data/x.gif --title "..." --line "..." --line "..."`
+- Markdown 里写 `![说明](.data/x.gif)` 或 Steam URL，发帖时统一转存
+
 ### 表情
 
 用 `voice/emoji.md` 里**确认可用**的那些。名字拼错会原样显示成方括号文字。
