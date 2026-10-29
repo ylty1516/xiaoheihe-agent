@@ -1239,12 +1239,19 @@ class ProtocolClient:
         if data.get("status") != "ok":
             raise TransportError(f"发帖失败：{_error_message(data, 'unknown')}")
 
+        # 实测响应把 link_id 放在**顶层**：
+        #   {"link_id": 195294061, "msg": "", "status": "ok"}
+        # 早期版本只在 result 里找，于是发布成功后 CLI 拿不到 link_id，
+        # 无法核对帖子是否真的出去了（教训：夹具必须照抄真实响应形状）。
         result = data.get("result") if isinstance(data.get("result"), dict) else {}
-        return PostResult(
-            ok=True,
-            link_id=str(result.get("link_id") or result.get("linkid") or ""),
-            is_draft=draft,
+        link_id = (
+            data.get("link_id")
+            or data.get("linkid")
+            or result.get("link_id")
+            or result.get("linkid")
+            or ""
         )
+        return PostResult(ok=True, link_id=str(link_id), is_draft=draft)
 
     def _form_headers(self) -> dict[str, str]:
         """表单提交的头。Cookie 在 session 默认头里，这里不重复带。"""

@@ -247,8 +247,20 @@ class _CapturingPostClient(ProtocolClient):
 
 @pytest.fixture
 def fake_post_client() -> ProtocolClient:
+    # 形状照抄真实响应：link_id 在顶层，不在 result 里。
+    # 之前这里写的 {"result": {"link_id": ...}} 是错的，掩盖了一个真 bug。
     return _CapturingPostClient(
-        {"status": "ok", "result": {"link_id": "999888"}},
+        {"link_id": 999888, "msg": "", "status": "ok"},
+        Session(cookie="cookie=secret", heybox_id="10000001"),
+        load_config(),
+    )
+
+
+@pytest.fixture
+def fake_post_client_nested_id() -> ProtocolClient:
+    """兼容旧形状：万一哪天服务端改回 result 里。"""
+    return _CapturingPostClient(
+        {"status": "ok", "result": {"link_id": "777666"}},
         Session(cookie="cookie=secret", heybox_id="10000001"),
         load_config(),
     )

@@ -113,3 +113,25 @@ async def test_edit_mode_sends_link_id_and_edit_flag(fake_post_client):
     body = fake_post_client.captured[-1][2]["data"]
     assert "link_id=195232074" in body
     assert "edit=1" in body
+
+
+async def test_link_id_is_read_from_top_level(fake_post_client):
+    """实测：发帖响应把 link_id 放在顶层，不在 result 里。
+
+    {"link_id": 195294061, "msg": "", "status": "ok"}
+
+    早期代码只在 result 里找，于是发布成功也拿不到 id——CLI 只能打印
+    "已公开发布"，无法核对帖子到底出没出去。这个测试就是那次的回归。
+    """
+    result = await fake_post_client.submit_post(
+        title="标题", content="<p>正文</p>", draft=False
+    )
+    assert result.link_id == "999888"
+
+
+async def test_link_id_falls_back_to_result(fake_post_client_nested_id):
+    """旧形状仍然认，避免服务端回退时又抓瞎。"""
+    result = await fake_post_client_nested_id.submit_post(
+        title="标题", content="<p>正文</p>", draft=True
+    )
+    assert result.link_id == "777666"
