@@ -72,6 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
             metavar="NAME",
             help="分区名字或 ID（可多次传）。游戏帖除了 PC 区还要挂游戏专属分区",
         )
+        parser_ref.add_argument(
+            "--allow-short",
+            dest="allow_short",
+            action="store_true",
+            help="跳过发帖自检（字数/转折词/配图）。默认不合格就中止",
+        )
         parser_ref.add_argument("--html-out", dest="html_out", metavar="FILE",
                                 help="把转换结果另存一份，便于本地预览")
         parser_ref.add_argument("--yes", action="store_true", help="确认正式发布")

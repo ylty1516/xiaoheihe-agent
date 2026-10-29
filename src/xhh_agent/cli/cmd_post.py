@@ -19,6 +19,7 @@ from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.plain import markdown_to_plain
 from xhh_agent.content.inline_images import replace_inline_images
+from xhh_agent.content.stats import MIN_CHARS, check_post, summarize
 from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import LoginExpired, XhhError
@@ -148,6 +149,32 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     print(f"标题：{title}")
     print(f"正文（HTML，article 模式）：{len(body_text)} 字符")
+
+    # 发帖自检：规则见 voice/content-strategy.md「硬规则」。
+    # 这里拿**Markdown 源文**算，不拿转换后的 HTML——HTML 里全是标签，
+    # 算出来的“字数”没有意义。
+    if markdown_text:
+        stats = summarize(markdown_text)
+        problems, notes = check_post(markdown_text)
+        print(
+            f"字数：{stats['chars']}（下限 {MIN_CHARS}）"
+            f"  配图：{stats['images']}  表情：{stats['emoji']}"
+            f"  喵~：{stats['meow']}  小标题：{stats['headings']}"
+        )
+        for note in notes:
+            print(f"提示：{note}")
+        if problems:
+            for problem in problems:
+                print(f"[X] {problem}", file=sys.stderr)
+            if not getattr(args, "allow_short", False):
+                print(
+                    "\n已中止：不符合发帖硬规则，没有提交。\n"
+                    "先改稿（py scripts/check_post.py 稿子.md 可以单独跑），"
+                    "确实要发就加 --allow-short。",
+                    file=sys.stderr,
+                )
+                return EXIT_USAGE
+            print("⚠ 检测到问题，但带了 --allow-short，照发。", file=sys.stderr)
 
 
     try:
