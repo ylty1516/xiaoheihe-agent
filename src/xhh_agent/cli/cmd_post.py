@@ -29,6 +29,59 @@ EXIT_ERROR = 1
 EXIT_USAGE = 2
 EXIT_LOGIN_EXPIRED = 3
 
+#: 不指定分区时的落点：PC 游戏。
+DEFAULT_TOPIC_ID = "1"
+
+
+def _split_topic_args(values: list[str] | None) -> tuple[list[str], list[str]]:
+    """把 ``--tag`` / ``--topic`` 拆成 (裸 ID, 待解析的名字)。
+
+    ``--tag`` 只接 ID（可一次给多个，用逗号或多次传参），保留旧用法。
+    ``--topic`` 接名字或 ID：纯数字当 ID，其余交给话题搜索解析。
+    """
+    ids: list[str] = []
+    names: list[str] = []
+    for raw in values or []:
+        if raw is None:
+            continue
+        for piece in str(raw).split(","):
+            item = piece.strip()
+            if not item:
+                continue
+            if item.isdigit():
+                ids.append(item)
+            else:
+                names.append(item)
+    return ids, names
+
+
+async def _resolve_topics(
+    client: ProtocolClient, ids: list[str], names: list[str]
+) -> tuple[list[str], dict[str, str]]:
+    """把分区名字解析成 topic_id，返回 (去重后的 ID 列表, 解析结果表)。
+
+    解析不到就 **报错而不是静默跳过**：只挂上 PC 区等于帖子进不了游戏的
+    专属分区，作者自己不知道。宁可整次失败。
+    """
+    resolved: dict[str, str] = {}
+    for name in names:
+        candidates = await client.search_topics(name)
+        if not candidates:
+            raise ValueError(
+                f"找不到分区「{name}」。先在 App 里确认这个分区叫什么，"
+                "或用 --tag 直接指定 ID。"
+            )
+        # 同名优先，否则取搜索结果第一个（服务端已按相关度排序）
+        exact = [c for c in candidates if c["name"] == name]
+        chosen = (exact or candidates)[0]
+        resolved[name] = chosen["topic_id"]
+
+    ordered: list[str] = []
+    for topic_id in ids + list(resolved.values()):
+        if topic_id and topic_id not in ordered:
+            ordered.append(topic_id)
+    return ordered, resolved
+
 
 def _read_source(path: str) -> str:
     source = Path(path)
@@ -41,8 +94,13 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
     md_path = getattr(args, "md", None)
     html_path = getattr(args, "html", None)
     title = (getattr(args, "title", None) or "").strip()
-    topic = getattr(args, "tag", None) or "1"   # 默认 PC游戏
-    topics = (str(topic),)
+
+    # --tag 是裸 ID，--topic 可以是名字。两者都会进分区列表。
+    # 默认落 PC 游戏；游戏帖另外用 --topic 挂上游戏专属分区。
+    tag_ids, topic_names = _split_topic_args(
+        list(getattr(args, "tag", None) or []) + list(getattr(args, "topic", None) or [])
+    )
+    base_ids = tag_ids or [DEFAULT_TOPIC_ID]
 
     if not title:
         print("参数错误：缺少 --title", file=sys.stderr)
@@ -100,6 +158,26 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     client = ProtocolClient(session, cfg)
     try:
+        try:
+            topics, resolved = await _resolve_topics(client, base_ids, topic_names)
+        except ValueError as exc:
+            print(f"分区解析失败：{exc}", file=sys.stderr)
+            return EXIT_USAGE
+        shown_parts = []
+        name_by_id = {topic_id: name for name, topic_id in resolved.items()}
+        for topic_id in topics:
+            label = name_by_id.get(topic_id)
+            shown_parts.append(f"{topic_id}({label})" if label else topic_id)
+        print(f"分区：{', '.join(shown_parts)}")
+        for name, topic_id in resolved.items():
+            print(f"  「{name}」-> {topic_id}")
+        if len(topics) < 2:
+            print(
+                "⚠ 只挂了一个分区。游戏帖建议再加游戏专属分区："
+                "--topic \"游戏名\"",
+                file=sys.stderr,
+            )
+
         # 结构自检放在图片替换之后：替换前看到 base64 是正常的中转状态。
         # 用 lookbehind 排除 `<strong><pre></strong>` —— 那是正文里行内代码
         # 提到 "<pre>" 这几个字被加粗了，不是残留标签。

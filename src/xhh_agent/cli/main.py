@@ -58,7 +58,20 @@ def build_parser() -> argparse.ArgumentParser:
         parser_ref.add_argument("--md", metavar="FILE", help="Markdown 源文件")
         parser_ref.add_argument("--html", metavar="FILE", help="已转换好的 HTML 源文件")
         parser_ref.add_argument("--title", required=False, help="帖子标题")
-        parser_ref.add_argument("--tag", default=None, help="分区 ID（不给则用默认分区）")
+        parser_ref.add_argument(
+            "--tag",
+            action="append",
+            default=None,
+            metavar="ID",
+            help="分区 ID（可多次传或逗号分隔）；不给则默认 PC游戏(1)",
+        )
+        parser_ref.add_argument(
+            "--topic",
+            action="append",
+            default=None,
+            metavar="NAME",
+            help="分区名字或 ID（可多次传）。游戏帖除了 PC 区还要挂游戏专属分区",
+        )
         parser_ref.add_argument("--html-out", dest="html_out", metavar="FILE",
                                 help="把转换结果另存一份，便于本地预览")
         parser_ref.add_argument("--yes", action="store_true", help="确认正式发布")
