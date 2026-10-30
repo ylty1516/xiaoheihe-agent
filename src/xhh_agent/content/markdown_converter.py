@@ -1019,6 +1019,8 @@ class HeyBoxConverter:
     @staticmethod
     def _load_font(size: int = 14, bold: bool = False):
         """尝试加载系统字体，失败返回 None。"""
+        from PIL import ImageFont
+
         try:
             if not HeyBoxConverter._FONT_PATH_CACHE:
                 HeyBoxConverter._FONT_PATH_CACHE.append(
