@@ -952,32 +952,84 @@ class HeyBoxConverter:
             return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
     @staticmethod
-    def _load_font(size: int = 14, bold: bool = False):
-        """尝试加载系统字体，失败返回 None。"""
+    def _find_font_path() -> str | None:
+        """找一份能渲染中文的字体文件。找不到返回 None。"""
+        import glob
+        import platform
+        import shutil
+        import subprocess
+
         from PIL import ImageFont
 
-        font_names = []
-        import platform
         system = platform.system()
 
         if system == "Windows":
-            font_names = ["msyh.ttc", "simhei.ttf"]  # 微软雅黑 / 黑体
-        elif system == "Darwin":  # macOS
-            font_names = ["PingFang SC.ttc", "Arial Unicode.ttf"]
-        else:  # Linux
-            font_names = [
-                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                "DejaVuSans.ttf",
-            ]
+            names = ["msyh.ttc", "simhei.ttf"]
+            for n in names:
+                try:
+                    ImageFont.truetype(n, 12)
+                    return n
+                except (IOError, OSError):
+                    continue
+            return None
 
-        for name in font_names:
+        if system == "Darwin":
+            for n in ["PingFang SC.ttc", "Arial Unicode.ttf"]:
+                try:
+                    ImageFont.truetype(n, 12)
+                    return n
+                except (IOError, OSError):
+                    continue
+            return None
+
+        # Linux：先问 fontconfig，再扫常见目录（PIL 的相对名只在 cwd 找，没用）
+        if shutil.which("fc-match"):
             try:
-                return ImageFont.truetype(name, size)
-            except (IOError, OSError):
-                continue
+                out = subprocess.run(
+                    ["fc-match", "-f", "%{file}", "Noto Sans CJK SC"],
+                    capture_output=True, text=True, timeout=5,
+                ).stdout.strip()
+                if out and os.path.exists(out):
+                    return out
+            except (OSError, subprocess.SubprocessError):
+                pass
 
+        for pattern in (
+            "/usr/share/fonts/**/NotoSansCJK*.tt[cf]",
+            "/usr/share/fonts/**/wqy-*.tt[cf]",
+            "/usr/share/fonts/**/*SC*.tt[cf]",
+            "/usr/share/fonts/**/DejaVuSans.ttf",
+            "/usr/share/fonts/**/*.ttf",
+        ):
+            hits = sorted(glob.glob(pattern, recursive=True))
+            if hits:
+                return hits[0]
         return None
+
+    @staticmethod
+    def has_render_font() -> bool:
+        """代码块/表格能否渲染成图片（依赖中文字体）。"""
+        try:
+            return HeyBoxConverter._find_font_path() is not None
+        except Exception:
+            return False
+
+    _FONT_PATH_CACHE: list = []
+
+    @staticmethod
+    def _load_font(size: int = 14, bold: bool = False):
+        """尝试加载系统字体，失败返回 None。"""
+        try:
+            if not HeyBoxConverter._FONT_PATH_CACHE:
+                HeyBoxConverter._FONT_PATH_CACHE.append(
+                    HeyBoxConverter._find_font_path() or ""
+                )
+            path = HeyBoxConverter._FONT_PATH_CACHE[0]
+            if not path:
+                return None
+            return ImageFont.truetype(path, size)
+        except (IOError, OSError):
+            return None
 
     @staticmethod
     def _wrap_text(text: str, font, max_width: int) -> List[str]:

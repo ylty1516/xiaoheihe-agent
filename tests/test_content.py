@@ -4,7 +4,15 @@
 所以转换器把它们渲染成 Base64 图片内嵌。这些测试钉的就是这个行为。
 """
 
+import pytest
+
 from xhh_agent.content import markdown_to_heybox_html
+from xhh_agent.content.markdown_converter import HeyBoxConverter
+
+needs_cjk_font = pytest.mark.skipif(
+    not HeyBoxConverter.has_render_font(),
+    reason="没有中文字体，代码块无法渲染成图片（CI 里装 fonts-noto-cjk）",
+)
 
 
 def test_paragraph_becomes_p():
@@ -13,6 +21,7 @@ def test_paragraph_becomes_p():
     assert "这是一段普通文字" in out
 
 
+@needs_cjk_font
 def test_code_block_becomes_image_not_pre():
     """小黑盒不支持 <pre>，代码块必须变图片，否则发出去是塌的。"""
     out = markdown_to_heybox_html("```python\nprint(1)\n```")
@@ -20,6 +29,7 @@ def test_code_block_becomes_image_not_pre():
     assert "data:image/" in out
 
 
+@needs_cjk_font
 def test_table_becomes_image_not_table():
     md = "| a | b |\n|---|---|\n| 1 | 2 |"
     out = markdown_to_heybox_html(md)
