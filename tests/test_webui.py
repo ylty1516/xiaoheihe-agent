@@ -242,3 +242,60 @@ async def test_publish_refuses_when_blockers_exist(tmp_path, monkeypatch):
     )
     assert result["ok"] is False
     assert client.calls == []
+
+
+# ── 启动器：端口冲突 ────────────────────────────────────────
+
+
+def _free_port() -> int:
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+async def test_launcher_reuses_a_running_panel():
+    """端口上有自己，就别再起一个——直接指过去。"""
+    from aiohttp import web
+
+    from xhh_agent.cli import cmd_auto
+
+    async def state(_):
+        return web.json_response({"now": "x", "slot": {}, "account": {}})
+
+    app = web.Application()
+    app.router.add_get("/api/state", state)
+    port = _free_port()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", port)
+    await site.start()
+    try:
+        assert await cmd_auto._already_running(port) == f"http://127.0.0.1:{port}/"
+    finally:
+        await runner.cleanup()
+
+
+async def test_launcher_ignores_unrelated_service():
+    """别的程序占着同一个端口时，不能把它当成自己的面板。"""
+    from aiohttp import web
+
+    from xhh_agent.cli import cmd_auto
+
+    async def whatever(_):
+        return web.json_response({"hello": "world"})
+
+    app = web.Application()
+    app.router.add_get("/api/state", whatever)
+    port = _free_port()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", port)
+    await site.start()
+    try:
+        assert await cmd_auto._already_running(port) == ""
+    finally:
+        await runner.cleanup()
