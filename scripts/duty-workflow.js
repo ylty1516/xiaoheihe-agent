@@ -27,10 +27,12 @@ const task = [
   "最后用中文简短汇报：这轮发没发、用了哪张写法卡、角度是什么、link_id、核对结果、下一轮该做什么。"
 ].join("\n");
 
+// 只放**在子进程里验证过能用**的模型。
+// 2026-10-30 实测：commandcode 在 `pi auth check` 里是 ready，但子进程里 401
+// （Invalid Authorization header），所以不进链——加了只会多两次失败。
 const models = [
   "deepseek/deepseek-flash",
-  "commandcode/deepseek/deepseek-v4-flash",
-  "commandcode/zai-org/GLM-5.3"
+  "deepseek/deepseek-v4-pro"
 ];
 
 const attempts = [];
@@ -38,16 +40,17 @@ let done = null;
 
 for (let i = 0; i < models.length; i++) {
   try {
+    // runs.run 只有在子任务真的跑完时才 resolve；失败会 throw。
+    // 别再拿 run.status 判断——这个字段根本不存在，之前就是这样误判的，
+    // 一篇已经发出去了，还接着跑了两轮降级。
     const run = await runs.run("duty-" + i, {
       agent: "delegate",
       model: models[i],
       task
     });
-    attempts.push({ model: models[i], status: run.status, runId: run.runId });
-    if (run.status === "completed") {
-      done = run;
-      break;
-    }
+    attempts.push({ model: models[i], ok: true, runId: run.runId });
+    done = run;
+    break;
   } catch (err) {
     attempts.push({ model: models[i], error: String((err && err.message) || err).slice(0, 300) });
   }

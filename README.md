@@ -245,3 +245,8 @@ npm i -g @earendil-works/chord@1.4.0    # 版本跟 pi-coding-agent 对齐
 `scripts/duty-workflow.js` 里已经把模型钉死成 `deepseek/deepseek-flash`，
 要换就改那一行，改完用 `py -m xhh_agent.cli.main ...` 之外的方式验证一次：
 手动 `schedule.run` 触发，看它是不是真发出来了。
+
+**子进程里的 provider 认证和 CLI 不一定一致。** 实测 `pi auth check --provider commandcode`
+返回 ready，但后台子进程里请求 401（`Invalid Authorization header`）。所以
+`scripts/duty-workflow.js` 的降级链只保留 `deepseek/*` 两个模型，别把没在子进程里跑通过的
+provider 加进去——加了只会多两次失败。
