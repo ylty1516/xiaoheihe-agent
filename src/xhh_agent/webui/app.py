@@ -24,12 +24,13 @@ from xhh_agent.protocol.errors import LoginExpired, XhhError
 from xhh_agent.protocol.session import SessionStore
 from xhh_agent.store.db import Store
 
+from .publishing import list_drafts, preflight, publish
 from .state import build_state
 
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).with_name("static")
-#: 面板只放行这三个动作。加新的动作前先想清楚：它会不会在没人看着的时候发出内容。
+#: 这三个是**只读**动作，走 /api/action。发帖走单独的 /api/publish，多一道确认。
 SAFE_ACTIONS = ("doctor", "hot", "poll")
 
 
@@ -119,7 +120,7 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     async def action(request: web.Request) -> web.Response:
         try:
             body = await request.json()
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             return web.json_response({"ok": False, "title": "请求体不是 JSON", "lines": []}, status=400)
 
         name = str(body.get("name", ""))
@@ -142,11 +143,52 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
             )
         return web.json_response(result)
 
+    async def drafts(_: web.Request) -> web.Response:
+        return web.json_response(await asyncio.to_thread(list_drafts, base))
+
+    async def preflight_view(request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return web.json_response({"ok": False, "error": "请求体不是 JSON"}, status=400)
+        result = await asyncio.to_thread(
+            preflight, base, str(body.get("file", "")), str(body.get("title", ""))
+        )
+        return web.json_response(result)
+
+    async def publish_view(request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return web.json_response({"ok": False, "title": "请求体不是 JSON", "lines": []}, status=400)
+        # 唯一会发出内容的路由：必须显式 confirm，不给开关、不给环境变量后门。
+        if body.get("confirm") is not True:
+            return web.json_response(
+                {"ok": False, "title": "没有确认", "lines": ["发布要带 confirm: true"]},
+                status=400,
+            )
+        topics = body.get("topics") or []
+        if not isinstance(topics, list):
+            topics = [str(topics)]
+        result = await publish(
+            base,
+            config,
+            file_name=str(body.get("file", "")),
+            title=str(body.get("title", "")),
+            topics=[str(t) for t in topics],
+            accept_warnings=bool(body.get("accept_warnings")),
+            confirm=True,
+        )
+        return web.json_response(result)
+
     app = web.Application()
     app["duty_url"] = ""
     app.router.add_get("/", index)
     app.router.add_get("/api/state", state)
+    app.router.add_get("/api/drafts", drafts)
     app.router.add_post("/api/action", action)
+    app.router.add_post("/api/preflight", preflight_view)
+    app.router.add_post("/api/publish", publish_view)
     return app
 
 

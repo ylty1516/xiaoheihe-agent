@@ -91,7 +91,10 @@ def profile(markdown: str) -> dict[str, str]:
 
 
 def _recent(exclude: set[Path]) -> list[Path]:
-    files = [p for p in RECENT_DIR.glob(RECENT_GLOB) if p not in exclude]
+    # 比绝对路径：新稿可能来自 web 面板（绝对路径），旧稿是相对 glob 出来的，
+    # 直接比 Path 会把新稿自己也算进去，变成 8/8 自撞。
+    skip = {p.resolve() for p in exclude}
+    files = [p for p in RECENT_DIR.glob(RECENT_GLOB) if p.resolve() not in skip]
     files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return files[:RECENT_COUNT]
 

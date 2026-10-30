@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
 import webbrowser
 from pathlib import Path
@@ -27,10 +28,9 @@ def _open_later(url: str, delay: float = 0.8) -> None:
         import time
 
         time.sleep(delay)
-        try:
+        # 打不开浏览器不该影响服务，吞掉就好
+        with contextlib.suppress(Exception):
             webbrowser.open(url)
-        except Exception:  # noqa: BLE001 - 打不开浏览器不该影响服务
-            pass
 
     threading.Thread(target=worker, daemon=True).start()
 
