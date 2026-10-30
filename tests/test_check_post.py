@@ -56,7 +56,7 @@ def test_good_post_passes():
 
 def test_short_post_is_rejected():
     problems, _ = check_post(_md(body="太短了喵~" * 5))
-    assert any("1500" in p for p in problems)
+    assert any(str(MIN_CHARS) in p for p in problems)
 
 
 def test_turn_words_are_rejected():
@@ -138,7 +138,7 @@ def test_boundary_around_min_chars(body_len):
     """
     md = _md(body="字" * body_len)
     problems, _ = check_post(md)
-    passed = not any("1500" in p for p in problems)
+    passed = not any(str(MIN_CHARS) in p for p in problems)
     assert passed is (count_body_chars(md) >= MIN_CHARS)
 
 
@@ -173,7 +173,7 @@ async def test_publish_aborts_on_short_post(tmp_path, capsys):
 
     assert code == cmd_post.EXIT_USAGE
     err = capsys.readouterr().err
-    assert "1500" in err
+    assert str(MIN_CHARS) in err
     assert "--allow-short" in err
 
 

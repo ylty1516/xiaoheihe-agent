@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from xhh_agent.content.stats import (
     MIN_CHARS,
+    RECOMMENDED_MIN,
     check_post,
     summarize,
 )
@@ -38,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     problems, notes = check_post(markdown)
 
     print(f"文件：{path}")
-    print(f"正文字数：{stats['chars']}（下限 {MIN_CHARS}）")
+    print(f"正文字数：{stats['chars']}（下限 {MIN_CHARS}，推荐 {RECOMMENDED_MIN}+）")
     print(f"配图：{stats['images']} 张")
     print(f"表情：{stats['emoji']} 个")
     print(f"喵~：{stats['meow']} 处")

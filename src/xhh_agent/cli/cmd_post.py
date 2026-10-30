@@ -19,7 +19,7 @@ from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.plain import markdown_to_plain
 from xhh_agent.content.inline_images import replace_inline_images
-from xhh_agent.content.stats import MIN_CHARS, check_post, summarize
+from xhh_agent.content.stats import MIN_CHARS, RECOMMENDED_MIN, check_post, summarize
 from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import LoginExpired, XhhError
@@ -157,7 +157,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         stats = summarize(markdown_text)
         problems, notes = check_post(markdown_text)
         print(
-            f"字数：{stats['chars']}（下限 {MIN_CHARS}）"
+            f"字数：{stats['chars']}（下限 {MIN_CHARS}，推荐 {RECOMMENDED_MIN}+）"
             f"  配图：{stats['images']}  表情：{stats['emoji']}"
             f"  喵~：{stats['meow']}  小标题：{stats['headings']}"
         )
