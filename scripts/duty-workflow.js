@@ -1,5 +1,10 @@
 // 影之刃零发帖值班：每 2 小时跑一次，发不发由 scripts/post_slot.py 决定。
 // 定时任务通过 subagent schedule.create 挂载，名字「影之刃零发帖值班」。
+//
+// 两个降级点（都是踩坑之后加的）：
+// 1. 模型钉死，不吃全局 defaultModel——settings.json 里的 yunyun4/* 早已失效。
+// 2. 模型链：主仓 503 时换下一个 provider，别让一轮整个作废。
+//    重试是安全的：新一轮自己会跑 post_slot，刚发过就只存草稿，不会重复发。
 
 const task = [
   "小黑盒发帖值班（只发《影之刃零》）。",
@@ -22,16 +27,40 @@ const task = [
   "最后用中文简短汇报：这轮发没发、用了哪张写法卡、角度是什么、link_id、核对结果、下一轮该做什么。"
 ].join("\n");
 
-// 模型钉死在这里，不吃全局 defaultModel：
-// 2026-10-30 踩过——settings.json 里写着 yunyun4/deepseek-v4-flash，
-// provider 改名之后这个 id 就不在注册表里了，定时任务每两小时失败一次。
-const run = await runs.run("duty", {
-  agent: "delegate",
-  model: "deepseek/deepseek-flash",
-  task
-});
+const models = [
+  "deepseek/deepseek-flash",
+  "commandcode/deepseek/deepseek-v4-flash",
+  "commandcode/zai-org/GLM-5.3"
+];
+
+const attempts = [];
+let done = null;
+
+for (let i = 0; i < models.length; i++) {
+  try {
+    const run = await runs.run("duty-" + i, {
+      agent: "delegate",
+      model: models[i],
+      task
+    });
+    attempts.push({ model: models[i], status: run.status, runId: run.runId });
+    if (run.status === "completed") {
+      done = run;
+      break;
+    }
+  } catch (err) {
+    attempts.push({ model: models[i], error: String((err && err.message) || err).slice(0, 300) });
+  }
+}
+
+if (!done) {
+  return { ok: false, tried: attempts };
+}
+
 return {
-  runId: run.runId,
-  status: run.status,
-  output: run.output
+  ok: true,
+  model: attempts[attempts.length - 1].model,
+  tried: attempts,
+  runId: done.runId,
+  output: done.output
 };
