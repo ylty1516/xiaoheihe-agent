@@ -22,7 +22,14 @@ const task = [
   "最后用中文简短汇报：这轮发没发、用了哪张写法卡、角度是什么、link_id、核对结果、下一轮该做什么。"
 ].join("\n");
 
-const run = await runs.run("duty", { agent: "delegate", task });
+// 模型钉死在这里，不吃全局 defaultModel：
+// 2026-10-30 踩过——settings.json 里写着 yunyun4/deepseek-v4-flash，
+// provider 改名之后这个 id 就不在注册表里了，定时任务每两小时失败一次。
+const run = await runs.run("duty", {
+  agent: "delegate",
+  model: "deepseek/deepseek-flash",
+  task
+});
 return {
   runId: run.runId,
   status: run.status,
