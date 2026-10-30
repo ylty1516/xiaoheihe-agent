@@ -1,3 +1,6 @@
+﻿# 注意：这个文件必须存成 UTF-8 with BOM。
+# PowerShell 5.1 会把无 BOM 的 UTF-8 当 ANSI 读，中文注释会把脚本撑坏。
+#
 # 把 "heihe" 命令挂到当前用户的 PATH 上，这样在任意 PowerShell 里
 # 直接敲 heihe auto 就能起面板。
 #
