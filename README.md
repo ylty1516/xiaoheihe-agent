@@ -230,3 +230,18 @@ Cookie 等价于账号密码，只存在 `.data/session.json`（0600），不进
 - agent 使用说明：[`skills/xiaoheihe-heybox/SKILL.md`](skills/xiaoheihe-heybox/SKILL.md)
 - 发帖值班手册：[`docs/posting-duty.md`](docs/posting-duty.md)
 - 写法卡（风格不重样）：[`docs/style-ledger.md`](docs/style-ledger.md)
+
+## 排错：定时任务起不来
+
+报 `Background children require the host npm package` 或
+`does not provide @earendil-works/chord`，是 pi 的全局安装缺一个可选依赖
+（pi 自己的 `dependencies` 里没写它）。补上同版本的就行：
+
+```powershell
+npm i -g @earendil-works/chord@1.4.0    # 版本跟 pi-coding-agent 对齐
+```
+
+报 `Unknown subagent model 'xxx/yyy'`，是模型 id 过期（provider 改名了）。
+`scripts/duty-workflow.js` 里已经把模型钉死成 `deepseek/deepseek-flash`，
+要换就改那一行，改完用 `py -m xhh_agent.cli.main ...` 之外的方式验证一次：
+手动 `schedule.run` 触发，看它是不是真发出来了。
