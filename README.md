@@ -1,6 +1,6 @@
 # xiaoheihe-agent
 
-> **v0.4.0** · 2026-10-28 · 小黑盒账号自动化（发帖 / 回评论 / 私信 / 逛帖学习）
+> **v0.5.0** · 2026-10-30 · 小黑盒账号自动化（发帖 / 回评论 / 私信 / 逛帖学习 / 本地面板）
 
 让 AI agent 用**自己的**小黑盒账号发帖、回评论、回私信 —— 像一个真的在用的号，而不是自动回复机器人。
 
@@ -21,6 +21,16 @@ xhh publish --md 稿子.md --title "标题" --tag 1 --yes
 - 图片自动转存到小黑盒图床，不重复
 - 「喵~」结尾换行生效
 
+### 本地面板：`heihe auto`
+
+![本地面板](docs/images/webui.png)
+
+一条命令把「现在什么情况」摊开：账号状态、今天发了几篇、下一篇最早几点、待回评论、
+最近写的稿子、逛帖笔记、定时任务日志。右上角的小圆点是刷新指示灯，页面每 5 秒自己刷一次。
+
+面板里只有三个按钮（自检 / 热搜 / 拉评论），**发帖和私信永远不会做成按钮**——
+会发出内容的事必须经过人。
+
 ---
 
 ## 能做什么
@@ -33,6 +43,7 @@ xhh publish --md 稿子.md --title "标题" --tag 1 --yes
 | **逛帖学习** | `study` | 每天挑高质量帖子，存成笔记供分析 |
 | **删除** | `delete` | 删帖子或草稿（hex / 数字 ID 都支持） |
 | **AI 生成回复** | `reply --generate` | 按语气规格和帖子语境生成，过校验才发 |
+| **本地面板** | `auto` | 启动 `127.0.0.1:8765` 的只读面板，自动开浏览器 |
 
 全是**纯 HTTP**，不需要 Playwright 或浏览器。签名在 Python 里算。
 
@@ -48,6 +59,25 @@ pip install -e ".[dev]"
 macOS / Linux 用 `python3 -m venv .venv && source .venv/bin/activate`。
 
 > **Windows 必须用 `py`**，`python` 是 Microsoft Store 的假 shim，执行后什么都不做也不报错。
+
+### 装完先让 `heihe` 能直接敲
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-heihe.ps1
+```
+
+这个脚本只改**当前用户**的 PATH（HKCU，不需要管理员），把仓库里的 `bin\` 加进去。
+新开一个 PowerShell 窗口就生效：
+
+```powershell
+heihe auto      # 起面板 + 开浏览器
+heihe doctor    # 四项自检
+```
+
+不想动 PATH 就直接用 `bin\heihe.cmd auto`，效果一样。撤销：`scripts\install-heihe.ps1 -Remove`。
+
+如果用 `pip install -e .` 装成了包，`heihe` 和 `xhh` 两个命令也会自动可用，
+和上面的 PATH 方案二选一就行。
 
 ## 使用
 
@@ -117,6 +147,31 @@ scripts\uninstall-schedule.bat    取消
 **为什么只生成草稿不自动发**：人不在场时把内容发出去，是最容易造成事故的一步喵。
 草稿留在队列里，你早上 `xhh queue list` 看一眼，确认就 `xhh reply --queue-id N --send`喵。
 
+### 发帖值班：3 篇/日，两小时间隔
+
+发帖是唯一被授权可以自动做的动作，但它有两个闸：
+
+```bash
+py scripts/post_slot.py check      # 0=能发 3=这个点不该发 4=不在作息时间
+py scripts/post_slot.py record --link-id 195437564
+py scripts/post_slot.py status
+```
+
+- 每天最多 **3 篇**（`HARD_LIMITS` 里写死）
+- 两篇之间至少 **2 小时**，只在 **09:00–23:00** 发
+- 账本：`.data/post-ledger.json`
+- 交给 agent 的完整流程：[`docs/posting-duty.md`](docs/posting-duty.md)
+
+### 风格不重样
+
+```bash
+py scripts/style_profile.py compare .data/post-新稿.md
+```
+
+把稿子拆成 8 项结构指纹（开头类型、小标题个数/形态/字数、段落节奏、
+首屏是否配图、收尾方式、篇幅档位），和最近三篇对比，撞 4 项以上就报错。
+写法卡和已写角度都在 [`docs/style-ledger.md`](docs/style-ledger.md)。
+
 ## 三条硬约束（写在代码里）
 
 1. **幂等优先** —— 同一条消息绝不回两次。宁可漏回，不可重发
@@ -135,12 +190,14 @@ scripts\uninstall-schedule.bat    取消
 | P3 | 私信：发送、历史 | ✅ 真机验收 |
 | P3+ | AI 生成回复层 | ✅ 代码完成，等可用的模型 key |
 | P3+ | 私信自动回复 | 未做 |
+| P4 | 本地面板（只读）+ 发帖排期手卫 | ✅ 代码完成，247 条测试通过 |
 
 ## 版本
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
-| **0.4.0** | 2026-10-28 | AI 生成回复（含 C4 校验闸门） |
+| **0.5.0** | 2026-10-30 | `heihe auto` 本地面板、发帖排期手卫、风格撞车检查 |
+| 0.4.0 | 2026-10-28 | AI 生成回复（含 C4 校验闸门） |
 | 0.3.0 | 2026-10-28 | 发帖（article/dynamic 双模式）、删除、逛帖学习、私信历史 |
 | 0.2.0 | 2026-10-28 | 回评论闭环：幂等表、频率闸门、决策门、队列 |
 | 0.1.0 | 2026-10-28 | P0 协议层：登录、自检、只读消息 |
@@ -158,3 +215,5 @@ Cookie 等价于账号密码，只存在 `.data/session.json`（0600），不进
 - 设计规格：[`docs/superpowers/specs/`](docs/superpowers/specs/)
 - 实现计划：[`docs/superpowers/plans/`](docs/superpowers/plans/)
 - agent 使用说明：[`skills/xiaoheihe-heybox/SKILL.md`](skills/xiaoheihe-heybox/SKILL.md)
+- 发帖值班手册：[`docs/posting-duty.md`](docs/posting-duty.md)
+- 写法卡（风格不重样）：[`docs/style-ledger.md`](docs/style-ledger.md)

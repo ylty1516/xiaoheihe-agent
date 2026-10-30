@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xhh-agent"
-version = "0.4.0"
+version = "0.5.0"
 description = "让 AI agent 通过自己的小黑盒账号发帖与回复"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -31,6 +31,8 @@ dev = [
 
 [project.scripts]
 xhh = "xhh_agent.cli.main:main"
+# 同一个入口两个名字：xhh 是正式命令，heihe 是日常手敲的短命令。
+heihe = "xhh_agent.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -127,6 +127,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_rep.add_argument("--generate", action="store_true", help="用模型生成回复内容")
     p_rep.add_argument("--send", action="store_true", help="真的发送")
 
+    p_auto = sub.add_parser("auto", help="启动本地面板并打开浏览器（heihe auto）")
+    p_auto.add_argument("--port", type=int, default=8765, help="监听端口（默认 8765）")
+    p_auto.add_argument(
+        "--root", default="", metavar="DIR", help="项目根目录（默认向上找 pyproject.toml）"
+    )
+    p_auto.add_argument(
+        "--no-open", dest="no_open", action="store_true", help="只起服务，不自动开浏览器"
+    )
+
     return p
 
 
@@ -166,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         "delete",
         "hot",
         "topic-posts",
+        "auto",
     ):
         from xhh_agent.config import load_config
 
@@ -201,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_topic import main as handler
         elif args.command == "delete":
             from xhh_agent.cli.cmd_delete import main as handler
+        elif args.command == "auto":
+            from xhh_agent.cli.cmd_auto import main as handler
         else:
             from xhh_agent.cli.cmd_inbox import main as handler
         return handler(args, cfg)

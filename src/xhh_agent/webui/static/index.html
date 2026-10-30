@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>小黑盒值班台</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --line: #262b36;
+    --text: #e8ebf0;
+    --dim: #8b93a3;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --accent: #7c9cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    background: rgba(15, 17, 21, .92);
+    backdrop-filter: blur(6px);
+    z-index: 2;
+  }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .5px; }
+  header .meta { color: var(--dim); font-size: 12px; margin-left: auto; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-right: 6px; }
+  .dot.stale { background: var(--warn); }
+  main { padding: 20px 24px 60px; max-width: 1180px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card h2 {
+    font-size: 12px;
+    color: var(--dim);
+    margin: 0 0 8px;
+    font-weight: 500;
+    letter-spacing: .6px;
+  }
+  .big { font-size: 26px; font-weight: 600; line-height: 1.2; }
+  .sub { color: var(--dim); font-size: 12px; }
+  .ok { color: var(--ok); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+  section { margin-top: 18px; }
+  section > h2 {
+    font-size: 13px;
+    color: var(--dim);
+    font-weight: 500;
+    letter-spacing: .6px;
+    margin: 0 0 10px;
+  }
+  .list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .row {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row .when { color: var(--dim); font-size: 12px; min-width: 92px; }
+  .row .what { flex: 1; }
+  .row a { color: var(--accent); text-decoration: none; }
+  .row a:hover { text-decoration: underline; }
+  .empty { padding: 14px; color: var(--dim); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  button {
+    background: #1f2532;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font: inherit;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: progress; }
+  pre {
+    background: #0b0d11;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 0;
+    font: 12px/1.55 "Cascadia Mono", Consolas, monospace;
+    color: #c7cdd9;
+    max-height: 260px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 820px) { .two { grid-template-columns: 1fr; } }
+  .pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+    color: var(--dim);
+  }
+  .pill.hot { border-color: var(--bad); color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>小黑盒值班台</h1>
+  <span class="sub" id="root"></span>
+  <span class="meta"><span class="dot" id="live"></span><span id="clock">--</span> · 每 5 秒刷新</span>
+</header>
+
+<main>
+  <div class="grid">
+    <div class="card">
+      <h2>账号</h2>
+      <div class="big" id="acct">--</div>
+      <div class="sub" id="acctNote"></div>
+    </div>
+    <div class="card">
+      <h2>今日发帖额度</h2>
+      <div class="big" id="quota">--</div>
+      <div class="sub" id="slotReason"></div>
+    </div>
+    <div class="card">
+      <h2>下一篇最早</h2>
+      <div class="big" id="nextPost">--</div>
+      <div class="sub" id="lastPost"></div>
+    </div>
+    <div class="card">
+      <h2>待回评论</h2>
+      <div class="big" id="pending">--</div>
+      <div class="sub" id="queueNote"></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>动作</h2>
+    <div class="actions">
+      <button data-action="doctor">跑一次自检</button>
+      <button data-action="hot">看热搜榜</button>
+      <button data-action="poll">扫一轮评论</button>
+    </div>
+    <pre id="output">点上面的按钮才会发请求。面板本身只读，刷新页面不会动账号。</pre>
+  </section>
+
+  <section>
+    <h2>今天发了什么</h2>
+    <div class="list" id="posts"></div>
+  </section>
+
+  <section>
+    <h2>待回评论队列</h2>
+    <div class="list" id="queueList"></div>
+  </section>
+
+  <div class="two">
+    <section>
+      <h2>最近写过的稿子</h2>
+      <div class="list" id="drafts"></div>
+    </section>
+    <section>
+      <h2>逛帖笔记</h2>
+      <div class="list" id="notes"></div>
+    </section>
+  </div>
+
+  <div class="two">
+    <section>
+      <h2>daily-poll.log</h2>
+      <pre id="logPoll">（无日志）</pre>
+    </section>
+    <section>
+      <h2>daily-study.log</h2>
+      <pre id="logStudy">（无日志）</pre>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const text = (el, value) => { el.textContent = value; };
+
+function row(parts) {
+  const div = document.createElement("div");
+  div.className = "row";
+  for (const part of parts) {
+    if (!part) continue;
+    if (part.html) {
+      div.insertAdjacentHTML("beforeend", part.html);
+    } else {
+      const span = document.createElement("span");
+      span.className = part.cls || "what";
+      span.textContent = part.text;
+      div.appendChild(span);
+    }
+  }
+  return div;
+}
+
+function render(state) {
+  $("root").textContent = state.root;
+  $("clock").textContent = state.now;
+  $("live").className = "dot";
+
+  const acct = state.account;
+  text($("acct"), acct.ok ? "已登录" : "没有会话");
+  $("acct").className = "big " + (acct.ok ? "ok" : "bad");
+  text($("acctNote"), [acct.heybox_id, acct.saved_at && "保存于 " + acct.saved_at, acct.note]
+    .filter(Boolean).join(" · "));
+
+  const slot = state.slot;
+  text($("quota"), slot.today_count + " / " + slot.cap);
+  $("quota").className = "big " + (slot.allowed ? "ok" : "warn");
+  text($("slotReason"), slot.reason);
+
+  text($("nextPost"), slot.next_at || (slot.allowed ? "随时" : "—"));
+  text($("lastPost"), slot.last_at ? "上一篇 " + slot.last_at : "今天还没发");
+
+  text($("pending"), String(state.queue.pending));
+  $("pending").className = "big " + (state.queue.pending ? "warn" : "ok");
+  const counts = state.queue.counts || {};
+  text($("queueNote"),
+    "已批准 " + (counts.approved || 0) + " · 已忽略 " + (counts.rejected || 0));
+
+  const posts = $("posts");
+  posts.innerHTML = "";
+  if (!state.posts.length) {
+    posts.innerHTML = '<div class="empty">今天还没发帖。</div>';
+  } else {
+    state.posts.forEach((p) => posts.appendChild(row([
+      { text: p.at, cls: "when" },
+      { text: p.link_id, cls: "what" },
+      { html: '<a class="what" href="' + p.url + '" target="_blank" rel="noreferrer">打开</a>' }
+    ])));
+  }
+
+  const queue = $("queueList");
+  queue.innerHTML = "";
+  if (!state.queue.items.length) {
+    queue.innerHTML = '<div class="empty">队列是空的。</div>';
+  } else {
+    state.queue.items.forEach((item) => {
+      const pill = item.must_human
+        ? '<span class="pill hot">强制人工</span>'
+        : "";
+      queue.appendChild(row([
+        { text: "#" + item.id + " " + item.sender, cls: "when" },
+        { text: item.text || "（无内容）", cls: "what" }
+      ]));
+      if (pill) queue.lastChild.insertAdjacentHTML("beforeend", pill);
+      if (item.draft) {
+        const d = document.createElement("div");
+        d.className = "sub";
+        d.textContent = "草稿：" + item.draft;
+        queue.lastChild.appendChild(d);
+      }
+    });
+  }
+
+  const drafts = $("drafts");
+  drafts.innerHTML = "";
+  if (!state.drafts.length) {
+    drafts.innerHTML = '<div class="empty">还没有稿子。</div>';
+  } else {
+    state.drafts.forEach((d) => drafts.appendChild(row([
+      { text: d.at, cls: "when" },
+      { text: d.name, cls: "what" },
+      { text: d.chars + " 字", cls: "sub" }
+    ])));
+  }
+
+  const notes = $("notes");
+  notes.innerHTML = "";
+  if (!state.notes.latest.length) {
+    notes.innerHTML = '<div class="empty">还没有逛帖笔记。</div>';
+  } else {
+    state.notes.latest.forEach((n) => notes.appendChild(row([
+      { text: n.at, cls: "when" },
+      { text: n.name, cls: "what" }
+    ])));
+  }
+
+  text($("logPoll"), state.logs["daily-poll"] || "（无日志）");
+  text($("logStudy"), state.logs["daily-study"] || "（无日志）");
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/state", { cache: "no-store" });
+    render(await res.json());
+  } catch (err) {
+    $("live").className = "dot stale";
+    $("clock").textContent = "连接断开";
+  }
+}
+
+async function runAction(name, button) {
+  const out = $("output");
+  button.disabled = true;
+  out.textContent = "在跑 " + name + " …";
+  try {
+    const res = await fetch("/api/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    out.textContent = (data.ok ? "✓ " : "× ") + data.title + "\n\n" + (data.lines || []).join("\n");
+  } catch (err) {
+    out.textContent = "请求失败：" + err;
+  } finally {
+    button.disabled = false;
+    refresh();
+  }
+}
+
+document.querySelectorAll("button[data-action]").forEach((btn) => {
+  btn.addEventListener("click", () => runAction(btn.dataset.action, btn));
+});
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
