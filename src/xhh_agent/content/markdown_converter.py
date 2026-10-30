@@ -744,14 +744,20 @@ class HeyBoxConverter:
                 lexer = guess_lexer(code)
 
             # 配置图片格式化器
-            formatter = ImageFormatter(
-                style="friendly",
-                linenos=False,
-                font_size=14,
-                line_padding=4,
-                image_pad=16,
-                background_color=self.COLOR_CODE_BG,
-            )
+            # Pygments 在 Linux 上会用 fc-list 找字体；没装 fontconfig 的机器
+            # （CI、容器）会直接抛异常，所以这里显式给出字体路径。
+            options = {
+                "style": "friendly",
+                "linenos": False,
+                "font_size": 14,
+                "line_padding": 4,
+                "image_pad": 16,
+                "background_color": self.COLOR_CODE_BG,
+            }
+            font_path = HeyBoxConverter._find_font_path()
+            if font_path:
+                options["font_name"] = font_path
+            formatter = ImageFormatter(**options)
 
             # 渲染
             png_data = pygments.highlight(code, lexer, formatter)
