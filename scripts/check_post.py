@@ -21,9 +21,11 @@ from xhh_agent.content.stats import (
     check_post,
     summarize,
 )
+from xhh_agent.cli.main import _force_utf8_output
 
 
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_output()
     args = sys.argv[1:] if argv is None else argv
     if not args:
         print("用法：py scripts/check_post.py 稿子.md", file=sys.stderr)

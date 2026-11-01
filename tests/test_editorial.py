@@ -160,6 +160,30 @@ def test_style_recognizes_numbering_and_ignores_signature():
     assert profile("## 01 杀气机制\n\n怎么选择？\n\n喵~")["收尾方式"] == "问句收尾"
 
 
+@pytest.mark.parametrize("script", ["check_post.py", "style_profile.py", "editorial.py"])
+def test_scripts_emit_utf8_even_under_western_windows_encoding(tmp_path, script):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = tmp_path / "post-中文.md"
+    source.write_text("正文" * 800 + "\n![a](x)\n![b](y)\n![c](z)", encoding="utf-8")
+    args = {
+        "check_post.py": [str(source)],
+        "style_profile.py": ["show", str(source)],
+        "editorial.py": ["init", str(source)],
+    }[script]
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / script), *args],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "中文" in result.stdout.decode("utf-8") or "小标题" in result.stdout.decode("utf-8")
+
+
 @pytest.mark.parametrize(
     "name", ["../post-x.md", "post-x.md/other", "post-x.md:stream", "README.md"]
 )

@@ -14,6 +14,7 @@ import argparse
 import json
 from pathlib import Path
 
+from xhh_agent.cli.main import _force_utf8_output
 from xhh_agent.content.editorial import (
     brief_path,
     empty_brief,
@@ -29,6 +30,7 @@ from xhh_agent.content.editorial import (
 
 
 def main(argv=None) -> int:
+    _force_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("init", "plan", "review", "import", "learn", "library"))
     parser.add_argument("file", type=Path, nargs="?")
