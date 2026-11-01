@@ -11,9 +11,11 @@
 1. 跑 `py -m xhh_agent.cli.main doctor`。失败就停止。
 2. 跑 `py scripts/post_slot.py check` 和 status。非 0 不发布，只学习或存本地草稿。
 3. 看 `hot -n 5`、`topic-posts "影之刃零" -n 10`；找到读者问题并查原始来源。
-4. 读最近已发内容与 `editorial.py library`。没有新问题或新证据就不硬写。
+4. 运行 `editorial.py audit`，读最近已发正文摘录和 `editorial.py library` 中适用的卡。
+   不能只看标题；历史为空先核对旧文补录。没有新问题或新证据就不硬写。
 5. 新建 post-*.brief.json，填全选题卡，明确本篇不再展开的旧内容。
-6. `editorial.py plan` 比较三种提纲，按证据选择结构；用案例、反例和边界展开。
+6. `editorial.py plan` 比较读者任务、推理路径、收尾与配图用途，按证据选择路线。
+   不靠换标题、堆平台数字或编出实测制造多样。评论和总量数据不能越界支持普遍结论。
 7. 写正文，跑 check_post.py、`editorial.py review 新稿.md --require-brief`。
    拦截项必须修复；重复线索必须逐段判断并说明增量，不能仅换排版后忽略。
 8. 跑 `style_profile.py compare 新稿.md`，只作节奏建议。允许不同主题使用相同排版。

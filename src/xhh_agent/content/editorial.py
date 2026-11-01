@@ -7,6 +7,7 @@ publications enter history; draft mtimes never determine the comparison set.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import tempfile
@@ -14,6 +15,8 @@ import time
 from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import urlparse
+
+from .diversity import ROUTES, audit, reused_images
 
 HISTORY = Path(".data/editorial-history.json")
 STRUCTURES = {
@@ -48,6 +51,12 @@ def validate_brief(brief: object, *, complete: bool = True) -> list[str]:
             errors.append(f"选题卡缺少文本字段：{key}")
     if brief.get("structure") not in STRUCTURES:
         errors.append("请选择有效的文章类型")
+    route = brief.get("route")
+    if route:
+        if not isinstance(route, str) or route not in ROUTES:
+            errors.append("请选择有效的论证路线 route，或留空按材料决定")
+        elif brief.get("structure") not in ROUTES[route]["types"]:
+            errors.append("论证路线 route 与文章类型不匹配，请按实际材料选择")
     exclude = brief.get("exclude", [])
     if not isinstance(exclude, list) or any(not isinstance(x, str) for x in exclude):
         errors.append("不再展开的内容必须是文本列表")
@@ -108,6 +117,9 @@ def load_history(root: Path) -> list[dict]:
             or not isinstance(x.get("link_id"), str)
             or not isinstance(x.get("brief", {}), dict)
             or not isinstance(x.get("published_at"), (float, int))
+            or isinstance(x.get("published_at"), bool)
+            or not math.isfinite(x["published_at"])
+            or x["published_at"] <= 0
             for x in data
         ):
             raise ValueError("历史格式错误")
@@ -119,11 +131,27 @@ def load_history(root: Path) -> list[dict]:
 
 
 def record_publication(
-    root: Path, *, link_id: str, title: str, markdown: str, brief: dict | None = None
+    root: Path,
+    *,
+    link_id: str,
+    title: str,
+    markdown: str,
+    brief: dict | None = None,
+    published_at: float | None = None,
 ) -> None:
     if not link_id:
         raise ValueError("没有 link_id 不能登记已发布内容")
-    entries = [x for x in load_history(root) if x.get("link_id") != str(link_id)]
+    history = load_history(root)
+    previous = next((x for x in history if x["link_id"] == str(link_id)), {})
+    stamp = published_at if published_at is not None else previous.get("published_at", time.time())
+    if (
+        isinstance(stamp, bool)
+        or not isinstance(stamp, (int, float))
+        or not math.isfinite(stamp)
+        or stamp <= 0
+    ):
+        raise ValueError("发布时间必须是有效的正数 Unix 时间戳")
+    entries = [x for x in history if x.get("link_id") != str(link_id)]
     entries.insert(
         0,
         {
@@ -131,7 +159,7 @@ def record_publication(
             "title": title,
             "markdown": markdown,
             "brief": brief or {},
-            "published_at": time.time(),
+            "published_at": stamp,
         },
     )
     write_json(root / HISTORY, entries)
@@ -227,11 +255,21 @@ def review(
                 + ("，核心问题和结论近似" if same_claim else "")
                 + "；保留新增信息，核对是否需要删减旧内容"
             )
+    diversity = audit(history, markdown)
+    warnings.extend(diversity["warnings"])
+    images = reused_images(markdown, history)
+    for image in images:
+        warnings.append(
+            f"配图复用：与《{image['title']}》使用了 {image['count']} 个相同图片资源；"
+            "核对是否确实服务本篇证据，不根据不同缩略图地址判断图片不同"
+        )
     return {
         "blockers": blockers,
         "warnings": warnings,
         "matches": matches,
         "history_count": len(history),
+        "diversity": diversity,
+        "reused_images": images,
         "method": "文本近似与选题卡线索，不能证明语义新颖或事实正确",
     }
 
@@ -241,19 +279,49 @@ def plan_options(brief: dict, history: list[dict]) -> list[dict]:
     if errors:
         raise ValueError("；".join(errors))
     recent = [x.get("brief", {}).get("structure") for x in history[:3]]
-    keys = sorted(STRUCTURES, key=lambda k: (k != brief["structure"], recent.count(k)))[:3]
-    return [
-        {
-            "id": key,
-            "name": STRUCTURES[key][0],
-            "sections": STRUCTURES[key][1],
-            "question": brief["question"],
-            "new_information": brief["new_information"],
-            "evidence": brief["facts"],
-            "note": "按证据决定是否适用；缺少验证结果、双方证据或前后资料时，不得编造补齐",
-        }
-        for key in keys
-    ]
+    related = {
+        "troubleshooting": ("mechanism", "guide", "investigation"),
+        "mechanism": ("investigation", "troubleshooting", "debate"),
+        "debate": ("investigation", "guide", "mechanism"),
+        "update": ("investigation", "guide", "mechanism"),
+        "guide": ("mechanism", "investigation", "troubleshooting"),
+        "investigation": ("mechanism", "debate", "update"),
+    }[brief["structure"]]
+    keys = [brief["structure"], *sorted(related, key=recent.count)[:2]]
+    used = [x.get("brief", {}).get("route") for x in history[:5]]
+    selected_routes, plans = set(), []
+    for key in keys:
+        candidates = [r for r, value in ROUTES.items() if key in value["types"]]
+        route_id = min(
+            candidates,
+            key=lambda r: (
+                r in selected_routes,
+                r != brief.get("route") if key == brief["structure"] else False,
+                used.count(r),
+            ),
+        )
+        selected_routes.add(route_id)
+        route = ROUTES[route_id]
+        plans.append(
+            {
+                "id": key,
+                "name": STRUCTURES[key][0],
+                "route": route_id,
+                "route_name": route["name"],
+                "reader_gain": route["gain"],
+                "entry": route["entry"],
+                "sections": route["sections"],
+                "ending": route["ending"],
+                "evidence_needed": route["needs"],
+                "image_roles": route["images"],
+                "question": brief["question"],
+                "new_information": brief["new_information"],
+                "evidence": brief["facts"],
+                "recent_habits": audit(history)["patterns"],
+                "note": "这些是候选推理路径，不是固定章节。先核对素材是否够用；不足就补证据或收窄结论，不为轮换而虚构",
+            }
+        )
+    return plans
 
 
 def rewrite_prompt(brief: dict, selected: str, instruction: str) -> str:

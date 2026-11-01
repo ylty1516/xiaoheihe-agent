@@ -12,6 +12,7 @@ import aiohttp
 from aiohttp import web
 
 from xhh_agent.automation.generator import GenerationError
+from xhh_agent.content.diversity import audit
 from xhh_agent.content.editorial import load_history, save_writing_card
 from xhh_agent.protocol.errors import XhhError
 
@@ -57,14 +58,15 @@ def install_workspace_routes(app, root, cfg):
     @route
     async def library(_):
         def read():
+            history = load_history(root)
             return {
                 "ok": True,
                 "drafts": list_drafts(root),
                 "archived": archived_drafts(root),
                 "published": [
-                    {k: x.get(k, "") for k in ("link_id", "title", "published_at")}
-                    for x in load_history(root)
+                    {k: x.get(k, "") for k in ("link_id", "title", "published_at")} for x in history
                 ],
+                "diversity": audit(history),
             }
 
         return web.json_response(await asyncio.to_thread(read))

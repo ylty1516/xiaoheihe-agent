@@ -142,7 +142,7 @@ py -m xhh_agent.cli.main topic-posts "GTA6" -n 8
 但社区本周真正在聊的是「210GB 容量」和「预购价格」，完全对不上。
 
 看这些标题和摘要，**借鉴他们的角度**（可以用自己的话复述），
-高赞说明这个角度打中了读者。别硬造一个没人关心的话题喵。
+热度只帮助发现问题，不能证明观点或机制正确。先核对来源，别硬造一个没人关心的话题喵。
 
 ### 第三步：找素材（不能凭空写）
 
@@ -164,17 +164,21 @@ fetch_content("https://github.com/trending")
 
 ### 写稿结构与去重
 
-先读 `docs/editorial-workflow.md`，填 `.brief.json` 选题卡，再用
-`py scripts/editorial.py plan 稿子.md` 比较三种论证路线。用证据、案例、反例和适用边界展开，
+先读 `docs/editorial-workflow.md`，运行 `py scripts/editorial.py audit` 看最近已发正文的习惯和摘录，
+历史为空时先核实公开旧文再补录，不拿草稿代替。填 `.brief.json` 选题卡，再用
+`py scripts/editorial.py plan 稿子.md` 比较读者任务、证据推理路径、收尾和配图用途。
+不默认社区吐槽开场、串联机制和评分人数、总评后提问；保留账号语气，不复制叙事套路。
+用证据、案例、反例和适用边界展开，区分他人体验和作者推断；总量数据不能推出阶段分布。
 不强制四段式、相邻话题、固定提问收尾。发布前跑
 `py scripts/editorial.py review 稿子.md --require-brief`。排版相似仅提醒。
 
-### 配图（至少 3 张，能动就动）
+### 配图（至少 3 张，逐张解释对应内容）
 
 - **至少 3 张图**，低于这个数不发
-- Steam 图直接写 URL（`https://cdn.akamai.steamstatic.com/steam/apps/<appid>/library_hero.jpg`）
+- 按内容选择规则原文、条件界面、操作场景或同条件对照；不能总用海报和通用战斗图凑数
+- 已核对来源的 Steam 图可直接写 URL，不凭空拼接不存在的图址
 - **动图通过现有下载与上传流程处理**，发布前核对转存结果
-- 造动图：`py scripts/make_gif.py --out .data/x.gif --title "..." --line "..." --line "..."`
+- 确实需要解释过程时可造动图：`py scripts/make_gif.py --out .data/x.gif --title "..." --line "..." --line "..."`；文字卡不冒充游戏实测
 - Markdown 里写 `![说明](.data/x.gif)` 或 Steam URL，发帖时统一转存
 
 ### 表情

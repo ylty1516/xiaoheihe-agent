@@ -78,6 +78,10 @@
   function row(title,sub) {const box=document.createElement('div');box.className='library-row';const main=document.createElement('div');main.className='row-body';const heading=document.createElement('h3');heading.textContent=title;const note=document.createElement('p');note.textContent=sub;main.append(heading,note);const actions=document.createElement('div');actions.className='row-actions';box.append(main,actions);return {box,main,actions};}
   function renderLibrary() {
     const list=$('libraryList');list.replaceChildren();const items=library[libraryTab]||[];
+    const audit=library.diversity;$('writingHabits').hidden=libraryTab!=='published';$('habitsBody').replaceChildren();
+    $('habitsSummary').textContent='最近 '+(audit?.history_count||0)+' 篇的写法习惯';
+    for(const pattern of audit?.patterns||[]) {const box=document.createElement('div');box.className='issue warn';const title=document.createElement('strong');title.textContent=pattern.count+' 篇'+pattern.label;const advice=document.createElement('p');advice.textContent=pattern.suggestion;box.append(title,advice);const references=document.createElement('details');const summary=document.createElement('summary');summary.textContent='原文对照';references.append(summary);for(const sample of pattern.examples.slice(0,2)){const quote=document.createElement('blockquote');quote.textContent=sample.title+'：'+sample.text;references.append(quote);}box.append(references);$('habitsBody').append(box);}
+    if(!audit?.patterns.length)empty($('habitsBody'),audit?.history_count?'暂未识别到连续重复的写法；这不代表语义或事实已通过检查。':'还没有已发布正文快照，暂时无法比较写法。');
     for(const item of items) {
       let view;
       if(libraryTab==='drafts') {view=row(item.suggested_title||'未命名草稿',`${item.chars} 字 · ${item.images} 张图 · ${date(item.modified_at)}`);view.actions.append(button('继续写作',()=>openDraft(item.name),'secondary'));}
@@ -136,12 +140,12 @@
     const selection=body.slice(selectedRange?.start||0,selectedRange?.end||0);
     if(mode==='rewrite'&&!selection.trim())throw new Error('先关闭窗口，在正文选中一段，再打开 AI 助手');
     notes=$('aiMaterial').value;mark();await save();
-    aiBusy=true;$('btnGenerate').disabled=true;$('btnApplyAI').hidden=true;$('aiResult').hidden=true;$('aiStatus').textContent='正在生成，原稿保持原样…';
+    aiBusy=true;$('btnGenerate').disabled=true;$('btnApplyAI').hidden=true;$('aiResult').hidden=true;$('aiNote').textContent='';$('aiReview').hidden=true;$('aiStatus').textContent='正在生成，原稿保持原样…';
     try {const result=await api('/api/generate',{mode,title,markdown:body,selected:selection,material:notes+(brief?'\n已有选题卡：'+JSON.stringify(brief):'')});generation={file,body,title,mode,start:selectedRange?.start,end:selectedRange?.end,text:result.text};$('aiResult').textContent=result.text;$('aiResult').hidden=false;$('btnApplyAI').hidden=false;$('btnApplyAI').textContent=mode==='outline'?'插入提纲':mode==='rewrite'?'替换选中段落':'采用正文';if(mode==='outline') {
       const choices=result.text.split(/(?=^##\s*方案\s*[123])/m).map(s=>s.trim()).filter(s=>/^##\s*方案\s*[123]/.test(s));
       if(choices.length===3) {$('aiResult').replaceChildren();$('btnApplyAI').hidden=true;for(const choice of choices){const section=document.createElement('section');section.className='outline-pick';const text=document.createElement('div');text.textContent=choice;section.append(text,button('采用这份提纲',async()=>{generation.text=choice;await applyAI();},'secondary'));$('aiResult').append(section);}}
     }
-    $('aiStatus').textContent='请核对事实与来源，再决定是否采用。';if(!$('aiDialog').open)toast('AI 结果已准备好，打开 AI 助手审阅');}
+    $('aiStatus').textContent=result.warnings?.length?'有 '+result.warnings.length+' 项写法提醒，请审阅后采用。':'请核对事实与来源，再决定是否采用。';$('aiNote').textContent=(result.warnings||[]).join('\n\n');$('aiReview').hidden=!result.warnings?.length;if(!$('aiDialog').open)toast('AI 结果已准备好，打开 AI 助手审阅');}
     finally {aiBusy=false;$('btnGenerate').disabled=false;if($('aiStatus').textContent.startsWith('正在'))$('aiStatus').textContent='生成未完成，原稿已保留。';}
   }
   async function applyAI() {

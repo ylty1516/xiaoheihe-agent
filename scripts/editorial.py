@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 from xhh_agent.cli.main import _force_utf8_output
+from xhh_agent.content.diversity import audit
 from xhh_agent.content.editorial import (
     brief_path,
     empty_brief,
@@ -32,15 +33,23 @@ from xhh_agent.content.editorial import (
 def main(argv=None) -> int:
     _force_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("init", "plan", "review", "import", "learn", "library"))
+    parser.add_argument(
+        "action", choices=("init", "plan", "review", "import", "learn", "library", "audit")
+    )
     parser.add_argument("file", type=Path, nargs="?")
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--require-brief", action="store_true")
     parser.add_argument("--link-id")
     parser.add_argument("--title")
+    parser.add_argument(
+        "--published-at", type=float, help="旧文实际发布时间（Unix 秒），避免补录时间改变比较顺序"
+    )
     parser.add_argument("--query", default="")
     args = parser.parse_args(argv)
     try:
+        if args.action == "audit":
+            print(json.dumps(audit(load_history(args.root)), ensure_ascii=False, indent=2))
+            return 0
         if args.action == "library":
             print(json.dumps(writing_cards(args.root, args.query), ensure_ascii=False, indent=2))
             return 0
@@ -69,6 +78,7 @@ def main(argv=None) -> int:
                 title=args.title,
                 markdown=args.file.read_text(encoding="utf-8"),
                 brief=brief,
+                published_at=args.published_at,
             )
             print("已补录内容快照；未执行发布")
             return 0

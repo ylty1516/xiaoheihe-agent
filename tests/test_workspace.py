@@ -402,6 +402,8 @@ async def test_workspace_http_preview_export_upload_and_origin_guard(tmp_path, c
         )
         library = await (await client.get("/api/library")).json()
         assert library["drafts"][0]["suggested_title"] == "导出标题"
+        assert library["diversity"]["history_count"] == 0
+        assert not library["diversity"]["patterns"]
         preview = await (await client.post("/api/preview", json={"markdown": "**正文**"})).json()
         assert "<strong>正文</strong>" in preview["html"]
         exported = await client.get("/api/export?file=" + created["file"])
