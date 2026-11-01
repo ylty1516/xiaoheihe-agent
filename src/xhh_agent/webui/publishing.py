@@ -20,6 +20,7 @@ from pathlib import Path
 import aiohttp
 
 from xhh_agent.automation.slots import DEFAULT_LEDGER, record_post, slot_state
+from xhh_agent.automation.publication import acquire
 from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.stats import check_post, load_profile, summarize
@@ -164,7 +165,33 @@ async def _resolve_topic_ids(
     return ids
 
 
-async def publish(
+async def publish(root, cfg, *, file_name, title, topics, accept_warnings, confirm):
+    """Serialize WebUI and autopilot submissions across server/CLI processes."""
+    if not confirm:
+        return {"ok": False, "title": "没有确认，不发", "lines": ["发布要显式确认一次。"]}
+    try:
+        connection = acquire(root)
+    except ValueError:
+        return {
+            "ok": False,
+            "title": "另一个发布正在处理",
+            "lines": ["本次尚未提交，请等待当前任务完成"],
+        }
+    try:
+        return await _publish(
+            root,
+            cfg,
+            file_name=file_name,
+            title=title,
+            topics=topics,
+            accept_warnings=accept_warnings,
+            confirm=confirm,
+        )
+    finally:
+        connection.close()
+
+
+async def _publish(
     root: Path,
     cfg: Config,
     *,

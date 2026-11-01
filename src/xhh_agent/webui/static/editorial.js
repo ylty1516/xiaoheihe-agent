@@ -5,6 +5,7 @@
   let saveTimer, saveChain = Promise.resolve(), conflict = false, library = {drafts:[],archived:[],published:[]};
   let libraryTab = 'drafts', previewing = false, report = null, model = {}, aiMode = 'outline', generation = null, aiBusy = false;
   let activeNote = null, contentProfile = 'article', currentSubject='auto', currentGenre='auto', subjectExplicit=false, lastTopic='盒友杂谈';
+  let autoJob=null, autoTimer, autoStartFile=null, autoStartRevision=null, autoOpened='';
   let writingOptions={subjects:[{id:'auto',name:'按本次要求',topic:'盒友杂谈'}],genres:[{id:'auto',name:'按内容组织'}],default_topic:'盒友杂谈'};
   let discoveryQuery='', discoveryTimer, discoverySeq=0, discoveryLoaded=false, operationPane='discover', discoveryFailures=0, displayedDiscovery=null;
   let selectedRange = null, replyRow = null, loginTimer = null, screen = 'writing', topicPurpose='search';
@@ -84,6 +85,41 @@
   async function newDraft() {if(dirty)await save();setDocument(await api('/api/editorial',{action:'new'}));await loadLibrary();go('writing');$('titleInput').focus();}
   async function loadLibrary() {library=await api('/api/library');renderRecent(); if(screen==='library')renderLibrary();}
   function button(text,fn,kind='text-button') {const node=document.createElement('button');node.className=kind;node.textContent=text;node.onclick=run(fn);return node;}
+  const autoActive=state=>['queued','collecting','planning','writing','checking','publishing'].includes(state);
+  async function autoJobs() {
+    const data=await api('/api/autopilot');$('autoJobList').replaceChildren();
+    if(!data.items.length)empty($('autoJobList'),'还没有自动任务。');
+    for(const item of data.items)$('autoJobList').append(button((item.title||'自动选题')+' · '+item.message,()=>showAutoJob(item.id),'auto-job-row'));
+    if(!autoJob&&data.items[0])await showAutoJob(data.items[0].id);
+  }
+  async function showAutoJob(id) {
+    clearTimeout(autoTimer);
+    const {job}=await api('/api/autopilot?id='+encodeURIComponent(id));autoJob=job;
+    $('autoProgress').hidden=false;$('autoTaskTitle').textContent=job.title||'任务进度';$('autoTaskStatus').textContent=job.message;
+    const detail=$('autoTaskDetail');detail.replaceChildren();
+    const messages=[...(job.issues||[]),...(job.check?.blockers||[]).filter(x=>job.publish||!x.startsWith('现在不能发')),...(job.check?.warnings||[])];
+    if(messages.length){const group=document.createElement('details'),summary=document.createElement('summary');summary.textContent='查看检查提醒（'+messages.length+'）';group.append(summary);for(const message of messages){const line=document.createElement('p');line.textContent=message;group.append(line);}detail.append(group);}
+    if(job.state==='awaiting_images'){const line=document.createElement('p');line.textContent='正文已保存。插件可读取配图任务，生成后自动回填；仅运行 WebUI 时，任务会等在这里。';detail.append(line);}
+    const actions=$('autoTaskActions');actions.replaceChildren();
+    if(job.file)actions.append(button('查看成稿',async()=>{$('autoDialog').close();await openDraft(job.file);},'secondary'));
+    if(['paused','failed','review','ready'].includes(job.state))actions.append(button('继续处理',async()=>{await api('/api/autopilot',{action:'resume',id:job.id});await showAutoJob(job.id);},'secondary'));
+    $('btnStartAuto').disabled=autoActive(job.state);
+    if(job.file&&['ready','published','review'].includes(job.state)&&autoOpened!==job.id&&!dirty&&current===autoStartFile&&revision===autoStartRevision){
+      autoOpened=job.id;await loadLibrary();await openDraft(job.file,false);toast(job.state==='published'?'自动任务已发布':'自动成稿已保存，可直接查看');
+    }
+    if(autoActive(job.state)||job.state==='waiting_slot'||job.state==='awaiting_images')autoTimer=setTimeout(()=>showAutoJob(id).catch(error=>{toast(error.message,true);$('btnStartAuto').disabled=false;}),autoActive(job.state)?3000:15000);
+  }
+  async function startAuto() {
+    if(dirty)await save();autoStartFile=current;autoStartRevision=revision;
+    $('btnStartAuto').disabled=true;
+    try {
+      const {job}=await api('/api/autopilot',{action:'start',instruction:$('autoInstruction').value,
+        material:$('autoUseMaterial').checked?notes:'',subject:subjectExplicit?currentSubject:'auto',genre:currentGenre,
+        profile:$('autoProfile').value,images:$('autoImages').value,
+        publish:$('autoPublish').checked,confirm:$('autoPublish').checked});
+      $('autoPublish').checked=false;await showAutoJob(job.id);await autoJobs();
+    }catch(error){$('btnStartAuto').disabled=false;throw error;}
+  }
   function empty(target,text) {const box=document.createElement('div');box.className='empty-state';box.textContent=text;target.append(box);}
   function renderRecent() {
     const list=$('recentDrafts');list.replaceChildren();
@@ -260,6 +296,7 @@
   $('topicQuery').addEventListener('keydown',event=>{if(event.key==='Enter')$('btnConfirmTopic').click();});
   $('btnPreview').onclick=run(togglePreview);$('btnCheck').onclick=run(check);$('warnOk').onchange=updatePublishButton;$('btnPublish').onclick=run(publish);
   $('btnAI').onclick=run(openAI);$('btnGenerate').onclick=run(generate);$('btnApplyAI').onclick=run(applyAI);
+  $('btnAutopilot').onclick=run(async()=>{dialog('autoDialog');await autoJobs();});$('btnStartAuto').onclick=run(startAuto);
   $('modelSetup').onclick=()=>dialog('modelDialog');$('btnSaveModel').onclick=run(async()=>{await api('/api/model',{base_url:$('modelURL').value,model:$('modelName').value,api_key:$('modelKey').value,persist:$('persistModel').checked});$('modelKey').value='';await loadModel();$('modelDialog').close();toast('AI 设置已保存');});
   $('btnHot').onclick=()=>discover('',{force:true});$('hotBoard').onchange=()=>discover('',{force:true});$('autoDiscover').onchange=()=>{$('autoDiscover').checked?discover(discoveryQuery,{automatic:true}):clearTimeout(discoveryTimer);};for(const id of ['discoverySort','discoveryWindow'])$(id).onchange=()=>discover(discoveryQuery,{force:true});$('btnTopic').onclick=()=>topicDialog('search');
   $('btnStudy').onclick=run(async()=>{output('正在学习两篇帖子…');const data=await api('/api/operate',{action:'study'});output(data.summary);await refreshState();});

@@ -1,12 +1,7 @@
-"""本地只读面板：把「agent 现在在做什么」摊开给人看。
+"""Loopback authoring UI with explicit account actions and durable auto jobs.
 
-设计上的三条底线：
-
-1. **只绑 127.0.0.1**，不做鉴权也不对外网开放——面板能读账号状态，
-   一旦暴露到局域网就等于半个后台。
-2. **默认只读**。刷新页面不产生任何请求、不写文件；真要触发动作必须显式点按钮，
-   而且只放三个安全动作（自检 / 热搜 / 拉评论），发帖和私信永远不放进面板。
-3. **动作失败也要说人话**，不把 traceback 直接吐到页面上。
+Reading a page does not authorize a new writing or publication task. Background
+workers resume only previously requested work; remote writes retain their gates.
 """
 
 from __future__ import annotations

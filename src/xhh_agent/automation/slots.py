@@ -85,6 +85,9 @@ def record_post(
 ) -> dict:
     moment = float(now if now is not None else time.time())
     posts = load_ledger(path)
+    existing = next((p for p in posts if str(p.get("link_id", "")) == str(link_id)), None)
+    if existing:
+        return existing
     entry = {"ts": moment, "link_id": str(link_id), "at": _fmt(moment)}
     posts.append(entry)
     save_ledger(posts, path)

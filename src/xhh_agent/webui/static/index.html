@@ -16,7 +16,7 @@
       <div class="editor-panel">
         <div class="editor-top"><span id="saveState" role="status">选择一篇草稿</span><div class="editor-actions"><button id="btnNewInline" class="text-button">新建</button><button id="btnSaveNow" class="text-button" hidden>保存</button><details id="moreActions" class="more-actions"><summary>更多</summary><div class="more-menu"><button id="btnImportMore" class="text-button">导入 Markdown</button><button id="btnDuplicate" class="text-button" disabled>复制</button><button id="btnExport" class="text-button" disabled>导出</button><button id="btnArchive" class="text-button" disabled>移入回收站</button></div></details></div></div>
         <input id="titleInput" class="title-input" aria-label="文章标题" placeholder="写下标题" maxlength="100" disabled>
-        <div class="editor-toolbar" aria-label="编辑工具"><div class="format-tools"><button data-format="heading" aria-label="插入二级标题">H2</button><button data-format="bold" aria-label="加粗选中文字"><b>B</b></button><button data-format="list">列表</button><button data-format="quote">引用</button><button id="btnImage">配图</button></div><div class="mode-tools"><button id="btnPreview" aria-pressed="false">预览</button><button id="btnAI" class="ai-button">AI 助手</button></div></div>
+        <div class="editor-toolbar" aria-label="编辑工具"><div class="format-tools"><button data-format="heading" aria-label="插入二级标题">H2</button><button data-format="bold" aria-label="加粗选中文字"><b>B</b></button><button data-format="list">列表</button><button data-format="quote">引用</button><button id="btnImage">配图</button></div><div class="mode-tools"><button id="btnPreview" aria-pressed="false">预览</button><button id="btnAI" class="text-button">AI 助手</button><button id="btnAutopilot" class="ai-button">自动完成</button></div></div>
         <textarea id="articleBody" class="article-input" aria-label="文章正文" placeholder="从一个具体问题开始写起…
 
 图片可以粘贴或拖入，编辑后会自动保存。" disabled></textarea>
@@ -51,5 +51,14 @@
 <dialog id="topicDialog"><div class="dialog-heading"><h2 id="topicDialogTitle">搜索社区话题</h2><button data-close="topicDialog" class="icon-button" aria-label="关闭话题选择">×</button></div><div class="field"><label for="topicQuery">游戏或话题名称</label><input id="topicQuery" placeholder="例如：影之刃零"></div><div id="topicMatches" class="topic-matches"></div><div class="dialog-footer"><button id="btnConfirmTopic" class="primary">搜索</button></div></dialog>
 <dialog id="loginDialog"><div class="dialog-heading"><h2>用小黑盒 App 扫码</h2><button data-close="loginDialog" class="icon-button" aria-label="关闭扫码登录">×</button></div><div id="loginQR" class="qr-container"></div><p id="loginStatus" class="muted">正在获取二维码…</p><button id="btnRenewQR" class="secondary" hidden>重新获取</button></dialog>
 <input id="mdFile" type="file" accept=".md,.markdown,text/markdown,text/plain" hidden><input id="imageFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><div id="toasts" aria-live="polite"></div>
+<dialog id="autoDialog" class="wide-dialog">
+  <div class="dialog-heading"><div><p class="muted">让助手接着做</p><h2>一次交代，自动成稿。</h2></div><button data-close="autoDialog" class="icon-button" aria-label="关闭自动成稿">×</button></div>
+  <p class="muted">选题、读取资料、写稿、检查与保存一次完成。关掉这个窗口，任务仍会继续。</p>
+  <div class="field"><label for="autoInstruction">这次想写什么</label><textarea id="autoInstruction" rows="3" placeholder="例如：找一个今天值得聊的游戏话题，写得轻松一点。留空就从当前游戏热榜选题。"></textarea></div>
+  <details class="auto-options"><summary>调整本次任务</summary><div class="writing-scope-grid"><div class="field"><label for="autoProfile">篇幅</label><select id="autoProfile"><option value="flexible">按材料决定</option><option value="short">短帖</option><option value="article">长文，至少三张相关配图</option></select></div><div class="field"><label for="autoImages">配图</label><select id="autoImages"><option value="auto">按需，由插件接续生图</option><option value="none">不配图</option></select></div></div><p class="muted">题材与写法沿用 AI 助手中的选择。内置生图由插件接手，独立 WebUI 不会直接调用聊天生图。</p><label class="checkbox-row"><input id="autoUseMaterial" type="checkbox">使用当前稿已有的材料说明</label><label class="checkbox-row"><input id="autoPublish" type="checkbox">完成后自动公开发布本篇，检查未通过则保留草稿</label></details>
+  <div class="dialog-footer"><span class="muted">每次创建新稿，保留当前文章。</span><button id="btnStartAuto" class="primary">自动成稿</button></div>
+  <section id="autoProgress" class="auto-progress" aria-live="polite" hidden><h3 id="autoTaskTitle">任务进度</h3><p id="autoTaskStatus"></p><div id="autoTaskDetail" class="muted"></div><div id="autoTaskActions" class="action-strip"></div></section>
+  <details id="autoHistory"><summary>最近任务</summary><div id="autoJobList" class="auto-job-list"></div></details>
+</dialog>
 <script src="/editorial.js"></script><script src="/effects.js"></script>
 </body></html>

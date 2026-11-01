@@ -22,11 +22,27 @@ from .media import MAX_IMAGE_BYTES, media_path, render_preview, save_image
 from .operations import Operations
 from .publishing import list_drafts
 from .writer import Writer
+from .autopilot import Autopilot
 
 
 def install_workspace_routes(app, root, cfg):
     writer = Writer(root, cfg)
     operations = Operations(root, cfg, writer)
+    autopilot = Autopilot(root, writer, operations)
+    watcher = None
+
+    async def startup(_):
+        nonlocal watcher
+        watcher = asyncio.create_task(autopilot.watch())
+
+    async def cleanup(_):
+        if watcher:
+            watcher.cancel()
+            await asyncio.gather(watcher, return_exceptions=True)
+        await autopilot.close()
+
+    app.on_startup.append(startup)
+    app.on_cleanup.append(cleanup)
 
     async def body(request):
         if request.content_type != "application/json":
@@ -136,6 +152,23 @@ def install_workspace_routes(app, root, cfg):
         return web.json_response(await writer.generate(await body(request)))
 
     @route
+    async def jobs(request):
+        if request.method == "GET":
+            job_id = request.query.get("id")
+            return web.json_response({"ok": True, **(
+                {"job": autopilot.read(job_id)} if job_id else {"items": autopilot.list()}
+            )})
+        data = await body(request)
+        if data.get("action", "start") == "start":
+            job = autopilot.create(data)
+        elif data.get("action") == "resume":
+            job = autopilot.read(data.get("id"))
+        else:
+            raise ValueError("不支持的自动任务操作")
+        autopilot.launch(job["id"])
+        return web.json_response({"ok": True, "job": job})
+
+    @route
     async def queue(_):
         return web.json_response({"ok": True, "items": await asyncio.to_thread(operations.queue)})
 
@@ -190,6 +223,8 @@ def install_workspace_routes(app, root, cfg):
     app.router.add_get("/api/model", model)
     app.router.add_post("/api/model", model)
     app.router.add_post("/api/generate", generate)
+    app.router.add_get("/api/autopilot", jobs)
+    app.router.add_post("/api/autopilot", jobs)
     app.router.add_get("/api/comments", queue)
     app.router.add_post("/api/operate", operate)
     app.router.add_get("/api/note", note)

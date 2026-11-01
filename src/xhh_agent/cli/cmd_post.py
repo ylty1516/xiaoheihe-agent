@@ -17,6 +17,8 @@ from pathlib import Path
 import aiohttp
 
 from xhh_agent.cli.cmd_login import session_path
+from xhh_agent.automation.publication import acquire
+from xhh_agent.automation.slots import DEFAULT_LEDGER, record_post
 from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.plain import markdown_to_plain
@@ -232,6 +234,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
 
     client = ProtocolClient(session, cfg)
     submitted = False
+    publication_lease = None
     try:
         try:
             topics, resolved = await _resolve_topics(client, base_ids, topic_names)
@@ -264,6 +267,12 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             print("已中止，避免发出排版残缺的帖子。", file=sys.stderr)
             return EXIT_ERROR
 
+        if not draft:
+            try:
+                publication_lease = acquire(editorial_root)
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return EXIT_ERROR
         submitted = True
         result = await client.submit_post(
             title=title,
@@ -280,6 +289,11 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         print(f"\n已{mode}" + (f"，link_id={result.link_id}" if result.link_id else ""))
         if not result.is_draft:
             print("注意：这条帖子已经公开，别人能看到了。")
+            if result.link_id:
+                try:
+                    record_post(result.link_id, path=editorial_root / DEFAULT_LEDGER)
+                except (OSError, ValueError):
+                    print("帖子已公开，勿重发；本地排期登记失败，请核对后补录。", file=sys.stderr)
             if markdown_text and result.ok and result.link_id:
                 try:
                     record_publication(
@@ -309,6 +323,8 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         )
         return EXIT_ERROR
     finally:
+        if publication_lease:
+            publication_lease.close()
         await client.close()
 
 

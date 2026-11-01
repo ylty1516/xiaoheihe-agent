@@ -86,6 +86,11 @@ xhh delete --link-id <id> --yes
 
 ## 内容记忆与学习
 
+自动成稿、恢复任务与内置生图回填命令见项目 `docs/autopilot.md`。已有明确写作要求用
+`xhh autopilot run --instruction "本次要求"`；短帖加 `--profile short`，不配图加 `--images none`。
+在项目根目录执行，或显式 `--root`。`run` 默认本地成稿；本篇已获发布授权时才加 `--publish --yes`。
+`list/status/images` 只读，`attach` 接收真实图片并在全部就绪后继续；不要为已公开或结果不明的任务新建替代任务重发。
+
 批量规划或维护长期内容时可使用：
 
 ```powershell

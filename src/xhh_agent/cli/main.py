@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from xhh_agent.content.writing import SUBJECTS
+from xhh_agent.content.writing import SUBJECTS, GENRES
 
 _STAGES = {
     "login": "P0 · 扫码登录",
@@ -165,6 +165,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-open", dest="no_open", action="store_true", help="只起服务，不自动开浏览器"
     )
 
+    pilot = sub.add_parser("autopilot", help="自动找资料、写稿、配图任务和检查")
+    pilot.add_argument("action", choices=("run", "list", "status", "resume", "images", "attach"))
+    pilot.add_argument("--root", default="", help="项目根目录")
+    pilot.add_argument("--id", default="", help="自动任务 ID")
+    pilot.add_argument("--instruction", default="", help="一句话要求；留空从游戏热榜选题")
+    pilot.add_argument("--query", default="", help="指定社区搜索关键词")
+    pilot.add_argument("--material-file", default="", help="已有资料 UTF-8 文件，可不连接账号成稿")
+    pilot.add_argument("--subject", choices=SUBJECTS, default="auto")
+    pilot.add_argument("--genre", choices=("auto", *GENRES), default="auto")
+    pilot.add_argument("--profile", choices=("article", "short", "flexible"), default="flexible")
+    pilot.add_argument("--images", choices=("auto", "none"), default="auto")
+    pilot.add_argument("--publish", action="store_true", help="检查全部通过后自动发布")
+    pilot.add_argument("--yes", action="store_true", help="明确授权本次自动任务公开发布")
+    pilot.add_argument("--image-id", default="", help="待配图条目 ID")
+    pilot.add_argument("--file", default="", help="生成好的图片路径")
     return p
 
 
@@ -205,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         "hot",
         "topic-posts",
         "auto",
+        "autopilot",
     ):
         from xhh_agent.config import load_config
 
@@ -240,6 +256,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_topic import main as handler
         elif args.command == "delete":
             from xhh_agent.cli.cmd_delete import main as handler
+        elif args.command == "autopilot":
+            from xhh_agent.cli.cmd_autopilot import main as handler
         elif args.command == "auto":
             from xhh_agent.cli.cmd_auto import main as handler
         else:
