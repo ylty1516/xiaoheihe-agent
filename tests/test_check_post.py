@@ -175,7 +175,7 @@ async def test_publish_aborts_on_short_post(tmp_path, capsys):
     source = tmp_path / "short.md"
     source.write_text("太短了，根本不够 1500 字。", encoding="utf-8")
 
-    code = await cmd_post._run(load_config(), _args(source), draft=True)
+    code = await cmd_post._run(load_config(), _args(source), draft=False)
 
     assert code == cmd_post.EXIT_USAGE
     err = capsys.readouterr().err

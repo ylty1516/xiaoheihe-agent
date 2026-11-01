@@ -570,7 +570,7 @@ def fake_llm_client_bad_then_good() -> _FakeLlmClient:
 
 @pytest.fixture
 def fake_llm_client_always_bad() -> _FakeLlmClient:
-    return _FakeLlmClient(["综上所述，这个方案不错喵~"])
+    return _FakeLlmClient(["我上周玩了40小时，已经实测过了喵~"])
 
 
 # ── 发帖带图夹具 ────────────────────────────────────────────

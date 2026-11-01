@@ -4,7 +4,7 @@
   let current = null, revision = null, brief = null, notes = '', dirty = false, serial = 0;
   let saveTimer, saveChain = Promise.resolve(), conflict = false, library = {drafts:[],archived:[],published:[]};
   let libraryTab = 'drafts', previewing = false, report = null, model = {}, aiMode = 'outline', generation = null, aiBusy = false;
-  let activeNote = null;
+  let activeNote = null, contentProfile = 'article';
   let selectedRange = null, replyRow = null, loginTimer = null, screen = 'writing', topicPurpose='search';
   const labels = {writing:'把精力留给内容。',library:'每一篇，都有着落。',workbench:'从社区获得下一篇灵感。',logs:'运行状态，一目了然。'};
   const date = ts => new Date(ts*1000).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -42,7 +42,7 @@
       $('saveState').textContent='保存中…';
       try {
         const data=await api('/api/editorial',{action:'save',file,revision,brief,
-          markdown:$('articleBody').value,metadata:{title:$('titleInput').value,topic:$('topicInput').value,notes}});
+          markdown:$('articleBody').value,metadata:{title:$('titleInput').value,topic:$('topicInput').value,notes,profile:contentProfile}});
         if(current===file) {revision=data.revision; if(snapshot===serial){dirty=false;$('btnSaveNow').hidden=true;} $('saveState').textContent=dirty?'待保存…':'已自动保存';}
         await loadLibrary();
       } catch(error) {if(error.message.includes('其他窗口'))conflict=true; $('saveState').textContent='保存失败，内容仍在本页'; throw error;}
@@ -54,9 +54,10 @@
     if(![...select.options].some(x=>x.value===value)) select.add(new Option(value,value),select.options.length-1);
     select.value=value;
   }
+  function chooseProfile(value) {contentProfile=value;$('aiProfile').value=value;$('publishProfile').value=value;}
   function setDocument(data) {
     current=data.file; revision=data.revision; brief=data.has_brief?data.brief:null; notes=data.metadata?.notes||''; dirty=false; conflict=false; serial++;
-    $('titleInput').value=data.title||''; $('articleBody').value=data.markdown||''; chooseTopic(data.metadata?.topic||'影之刃零');
+    $('titleInput').value=data.title||''; $('articleBody').value=data.markdown||''; chooseTopic(data.metadata?.topic||'影之刃零'); chooseProfile(data.metadata?.profile||'article');
     $('saveState').textContent='所有修改已保存'; $('aiMaterial').value=notes; report=null;
     ['titleInput','articleBody','btnDuplicate','btnExport','btnArchive','btnCheck'].forEach(id=>$(id).disabled=false);
     $('btnSaveNow').hidden=true;$('moreActions').open=false;count(); renderRecent();
@@ -115,7 +116,7 @@
   function renderIssues(data) {
     $('issues').replaceChildren();for(const [kind,items] of [['bad',data.blockers],['warn',data.warnings]])for(const text of items){const box=document.createElement('div');box.className='issue '+kind;box.textContent=text;$('issues').append(box);}
     $('warnBox').hidden=!data.warnings.length;$('warnOk').checked=false;
-    $('checkSummary').replaceChildren();for(const text of [`${data.stats.chars} 字`,`${data.stats.images} 张图`,data.slot.allowed?'排期允许':'当前排期不允许']){const span=document.createElement('span');span.textContent=text;$('checkSummary').append(span);}
+    $('checkSummary').replaceChildren();for(const text of [data.profile?.name||'长文',`${data.stats.chars} 字`,`${data.stats.images} 张图`,data.slot.allowed?'排期允许':'当前排期不允许']){const span=document.createElement('span');span.textContent=text;$('checkSummary').append(span);}
     $('duplicateBody').replaceChildren();$('duplicateDetails').hidden=!data.editorial?.matches.length;
     for(const match of data.editorial?.matches||[]) {const h=document.createElement('h3');h.textContent='与《'+match.title+'》的重复线索';$('duplicateBody').append(h);for(const para of match.repeated_paragraphs){const p=document.createElement('p');p.textContent='本稿：'+para.text;const old=document.createElement('blockquote');old.textContent='旧文：'+para.previous;$('duplicateBody').append(p,old);}}
     updatePublishButton();
@@ -141,11 +142,11 @@
     if(mode==='rewrite'&&!selection.trim())throw new Error('先关闭窗口，在正文选中一段，再打开 AI 助手');
     notes=$('aiMaterial').value;mark();await save();
     aiBusy=true;$('btnGenerate').disabled=true;$('btnApplyAI').hidden=true;$('aiResult').hidden=true;$('aiNote').textContent='';$('aiReview').hidden=true;$('aiStatus').textContent='正在生成，原稿保持原样…';
-    try {const result=await api('/api/generate',{mode,title,markdown:body,selected:selection,material:notes+(brief?'\n已有选题卡：'+JSON.stringify(brief):'')});generation={file,body,title,mode,start:selectedRange?.start,end:selectedRange?.end,text:result.text};$('aiResult').textContent=result.text;$('aiResult').hidden=false;$('btnApplyAI').hidden=false;$('btnApplyAI').textContent=mode==='outline'?'插入提纲':mode==='rewrite'?'替换选中段落':'采用正文';if(mode==='outline') {
-      const choices=result.text.split(/(?=^##\s*方案\s*[123])/m).map(s=>s.trim()).filter(s=>/^##\s*方案\s*[123]/.test(s));
-      if(choices.length===3) {$('aiResult').replaceChildren();$('btnApplyAI').hidden=true;for(const choice of choices){const section=document.createElement('section');section.className='outline-pick';const text=document.createElement('div');text.textContent=choice;section.append(text,button('采用这份提纲',async()=>{generation.text=choice;await applyAI();},'secondary'));$('aiResult').append(section);}}
+    try {const result=await api('/api/generate',{mode,title,profile:contentProfile,markdown:body,selected:selection,material:notes+(brief?'\n已有选题卡：'+JSON.stringify(brief):'')});generation={file,body,title,mode,start:selectedRange?.start,end:selectedRange?.end,text:result.text};$('aiResult').textContent=result.text;$('aiResult').hidden=false;$('btnApplyAI').hidden=false;$('btnApplyAI').textContent=mode==='outline'?'插入提纲':mode==='rewrite'?'替换选中段落':'采用正文';if(mode==='outline') {
+      const choices=result.text.split(/(?=^##\s*方案\s*\d+\s*[：:])/m).map(s=>s.trim()).filter(s=>/^##\s*方案\s*\d+\s*[：:]/.test(s));
+      if(choices.length>0) {$('aiResult').replaceChildren();$('btnApplyAI').hidden=true;for(const choice of choices){const section=document.createElement('section');section.className='outline-pick';const text=document.createElement('div');text.textContent=choice;section.append(text,button('采用这份提纲',async()=>{generation.text=choice;await applyAI();},'secondary'));$('aiResult').append(section);}}
     }
-    $('aiStatus').textContent=result.warnings?.length?'有 '+result.warnings.length+' 项写法提醒，请审阅后采用。':'请核对事实与来源，再决定是否采用。';$('aiNote').textContent=(result.warnings||[]).join('\n\n');$('aiReview').hidden=!result.warnings?.length;if(!$('aiDialog').open)toast('AI 结果已准备好，打开 AI 助手审阅');}
+    $('aiStatus').textContent=(result.stats?result.stats.chars+' 字 · ':'')+(result.warnings?.length?'有 '+result.warnings.length+' 项写法提醒，请审阅后采用。':'请核对事实与来源，再决定是否采用。');$('aiNote').textContent=(result.warnings||[]).join('\n\n');$('aiReview').hidden=!result.warnings?.length;if(!$('aiDialog').open)toast('AI 结果已准备好，打开 AI 助手审阅');}
     finally {aiBusy=false;$('btnGenerate').disabled=false;if($('aiStatus').textContent.startsWith('正在'))$('aiStatus').textContent='生成未完成，原稿已保留。';}
   }
   async function applyAI() {
@@ -191,6 +192,7 @@
   document.querySelectorAll('[data-operation]').forEach(node=>node.onclick=run(()=>operation(node.dataset.operation)));
   document.querySelectorAll('[data-operation-view]').forEach(node=>node.onclick=()=>{document.querySelectorAll('[data-operation-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===node)));document.querySelectorAll('[data-operation-pane]').forEach(p=>p.hidden=p.dataset.operationPane!==node.dataset.operationView);});
   function topicDialog(purpose) {topicPurpose=purpose;$('topicDialogTitle').textContent=purpose==='custom'?'选择发布分区':'搜索社区话题';$('btnConfirmTopic').textContent=purpose==='custom'?'采用分区':'搜索';$('topicQuery').value='';dialog('topicDialog');$('topicQuery').focus();}
+  for(const id of ['aiProfile','publishProfile'])$(id).onchange=run(async()=>{chooseProfile($(id).value);mark();await save();if($('publishDialog').open)await check();});
   $('topicInput').onchange=()=>{if($('topicInput').value==='__custom'){topicDialog('custom');return;}mark();if($('publishDialog').open)check().catch(error=>toast(error.message,true));};
   $('btnConfirmTopic').onclick=run(async()=>{const query=$('topicQuery').value.trim();if(!query)throw new Error('请填写名称');$('topicDialog').close();if(topicPurpose==='custom'){chooseTopic(query);mark();if($('publishDialog').open)await check();}else await discover(query);});
   $('topicDialog').addEventListener('close',()=>{if($('topicInput').value==='__custom')chooseTopic('影之刃零');});

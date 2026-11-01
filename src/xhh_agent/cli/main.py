@@ -1,8 +1,4 @@
-"""命令行入口。
-
-P0 阶段尚未实现。当前仅提供命令骨架与状态提示，
-确保 pyproject 声明的 entry point 可正常 install 而不报错。
-"""
+"""按任务组合账号查询、草稿、发布和互动命令。"""
 
 from __future__ import annotations
 
@@ -25,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="xhh",
         description="xiaoheihe-agent 命令行",
-        epilog="当前为设计阶段骨架，命令尚未实现。规格见 docs/superpowers/specs/",
+        epilog="按需选择命令；draft 不公开，publish 需 --yes。子命令 --help 可查看用法。",
     )
     sub = p.add_subparsers(dest="command", metavar="<command>")
 
@@ -73,22 +69,34 @@ def build_parser() -> argparse.ArgumentParser:
             help="分区名字或 ID（可多次传）。游戏帖除了 PC 区还要挂游戏专属分区",
         )
         parser_ref.add_argument(
+            "--profile",
+            choices=("article", "short", "flexible"),
+            default=None,
+            help="内容规格：长文 / 短帖 / 按需；默认读取草稿设置，否则沿用长文偏好",
+        )
+        parser_ref.add_argument(
             "--allow-short",
             dest="allow_short",
             action="store_true",
-            help="跳过发帖自检（字数/转折词/配图）。默认不合格就中止",
+            help="兼容旧用法：放行篇幅/配图/密度问题，优先使用 --profile short 或 flexible",
         )
-        parser_ref.add_argument("--html-out", dest="html_out", metavar="FILE",
-                                help="把转换结果另存一份，便于本地预览")
+        parser_ref.add_argument(
+            "--html-out", dest="html_out", metavar="FILE", help="把转换结果另存一份，便于本地预览"
+        )
         parser_ref.add_argument("--yes", action="store_true", help="确认正式发布")
-        parser_ref.add_argument("--edit-link", dest="edit_link", default="",
-                                help="改已有帖子：传它的 link_id")
+        parser_ref.add_argument(
+            "--edit-link", dest="edit_link", default="", help="改已有帖子：传它的 link_id"
+        )
 
     p_poll = sub.add_parser("poll", help="扫描自己帖子下的评论并放入待回复队列")
     p_poll.add_argument("--once", action="store_true", help="只跑一轮后退出")
     p_poll.add_argument("-n", "--limit", type=int, default=20, help="每次拉取的消息条数")
-    p_poll.add_argument("--generate-drafts", dest="generate_drafts", action="store_true",
-                        help="顺便用模型生成回复草稿（不发送）")
+    p_poll.add_argument(
+        "--generate-drafts",
+        dest="generate_drafts",
+        action="store_true",
+        help="顺便用模型生成回复草稿（不发送）",
+    )
 
     p_dm = sub.add_parser("dm", help="发一条私信（默认 dry-run）")
     p_dm.add_argument("--to", required=False, metavar="USER_ID", help="收件人 user_id")
@@ -112,9 +120,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_tp = sub.add_parser("topic-posts", help="看话题下社区高互动帖在聊什么")
     p_tp.add_argument("query", help="话题关键词，如 GTA6")
     p_tp.add_argument("-n", "--limit", type=int, default=8)
-    p_tp.add_argument("--time-range", dest="time_range", default="7d",
-                      choices=["7d", "30d", "180d", "360d", ""],
-                      help="时间范围，默认本周")
+    p_tp.add_argument(
+        "--time-range",
+        dest="time_range",
+        default="7d",
+        choices=["7d", "30d", "180d", "360d", ""],
+        help="时间范围，默认本周",
+    )
 
     p_study = sub.add_parser("study", help="逛帖学习：挑高质量帖子存素材（只读）")
     p_study.add_argument("-n", "--count", type=int, default=2, help="挑几篇（默认 2）")

@@ -188,11 +188,20 @@ def _shingles(text: str) -> set[str]:
 
 
 def review(
-    root: Path, markdown: str, brief: dict | None, *, require_brief=False, exclude_link_id: str = ""
+    root: Path,
+    markdown: str,
+    brief: dict | None,
+    *,
+    require_brief=False,
+    exclude_link_id: str = "",
+    brief_advice: bool = True,
 ) -> dict:
     blockers, warnings, matches = [], [], []
     if brief is None:
-        (blockers if require_brief else warnings).append("缺少选题卡，无法比较核心问题、结论与证据")
+        if require_brief or brief_advice:
+            (blockers if require_brief else warnings).append(
+                "缺少选题卡，无法比较核心问题、结论与证据"
+            )
     else:
         errors = validate_brief(brief)
         if errors:

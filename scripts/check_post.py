@@ -11,14 +11,15 @@
 from __future__ import annotations
 
 import sys
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from xhh_agent.content.stats import (
-    MIN_CHARS,
-    RECOMMENDED_MIN,
+    PROFILES,
     check_post,
+    load_profile,
     summarize,
 )
 from xhh_agent.cli.main import _force_utf8_output
@@ -26,22 +27,26 @@ from xhh_agent.cli.main import _force_utf8_output
 
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_output()
-    args = sys.argv[1:] if argv is None else argv
-    if not args:
-        print("用法：py scripts/check_post.py 稿子.md", file=sys.stderr)
-        return 2
-
-    path = Path(args[0])
+    parser = argparse.ArgumentParser(description="按草稿内容规格检查，默认沿用长文偏好")
+    parser.add_argument("file", type=Path)
+    parser.add_argument("--profile", choices=PROFILES, default=None)
+    args = parser.parse_args(argv)
+    path = args.file
     if not path.exists():
         print(f"找不到文件：{path}", file=sys.stderr)
         return 2
 
     markdown = path.read_text(encoding="utf-8")
     stats = summarize(markdown)
-    problems, notes = check_post(markdown)
+    try:
+        rules = load_profile(path, args.profile)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    problems, notes = check_post(markdown, profile=rules.id)
 
     print(f"文件：{path}")
-    print(f"正文字数：{stats['chars']}（下限 {MIN_CHARS}，推荐 {RECOMMENDED_MIN}+）")
+    print(f"内容规格：{rules.name}；正文字数：{stats['chars']}（下限 {rules.min_chars}）")
     print(f"配图：{stats['images']} 张")
     print(f"表情：{stats['emoji']} 个")
     print(f"喵~：{stats['meow']} 处")

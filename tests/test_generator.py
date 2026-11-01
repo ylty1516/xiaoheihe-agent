@@ -1,7 +1,7 @@
 """AI 生成回复：prompt 构造 + 输出校验。
 
 生成只是第一步，**校验才是关键**——生成出来的东西必须过得了 C4
-（不编造第一人称经历）和 profile 的禁用词检查，否则直接发出去就是事故。
+（不编造第一人称经历），语气偏好不作为机械禁词检查。
 """
 
 import pytest
@@ -83,17 +83,14 @@ def test_rejects_fabricated_experience():
         assert "经历" in reason
 
 
-def test_rejects_banned_words():
-    ok, reason = validate_generated("综上所述，这个方案整体不错喵~")
-    assert not ok
-    assert "禁用" in reason or "综上" in reason
+def test_style_words_are_not_an_automatic_rejection():
+    ok, value = validate_generated("因此先核对版本，再看对应设置喵~")
+    assert ok and "因此" in value
 
 
-def test_rejects_too_many_transitions():
-    """堆转折词是 AI 腔的主要来源。"""
-    ok, reason = validate_generated("虽然便宜，不过水深，但其实还行，然而要小心喵~")
-    assert not ok
-    assert "转折" in reason
+def test_natural_conjunctions_do_not_trigger_retries():
+    ok, value = validate_generated("虽然版本相同，但是设置不同，因此先对照这两个选项喵~")
+    assert ok and "但是" in value
 
 
 def test_strips_wrapping_quotes_and_prefix():

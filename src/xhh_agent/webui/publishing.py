@@ -20,7 +20,7 @@ from pathlib import Path
 from xhh_agent.automation.slots import DEFAULT_LEDGER, record_post, slot_state
 from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
-from xhh_agent.content.stats import check_post, summarize
+from xhh_agent.content.stats import check_post, load_profile, summarize
 from xhh_agent.content.editorial import load_brief, load_history, record_publication, review
 from xhh_agent.content.style import compare_styles
 from .editorial import draft_path, read_metadata
@@ -100,9 +100,10 @@ def preflight(root: Path, file_name: str, title: str) -> dict:
 
     markdown = path.read_text(encoding="utf-8")
     stats = summarize(markdown)
-    problems, notes = check_post(markdown)
     try:
-        editorial = review(root, markdown, load_brief(path))
+        rules = load_profile(path)
+        problems, notes = check_post(markdown, profile=rules.id)
+        editorial = review(root, markdown, load_brief(path), brief_advice=rules.id == "article")
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
     slot = slot_state(path=root / DEFAULT_LEDGER)
@@ -125,6 +126,7 @@ def preflight(root: Path, file_name: str, title: str) -> dict:
         "file": safe_name,
         "title": title,
         "stats": stats,
+        "profile": {"id": rules.id, "name": rules.name},
         "blockers": blockers,
         "warnings": warnings,
         "style": style,
@@ -213,8 +215,9 @@ async def publish(
     archive_notes = []
     try:
         record_post(result.link_id, path=root / DEFAULT_LEDGER)
-        record_publication(root, link_id=result.link_id, title=title.strip(),
-                           markdown=markdown, brief=brief)
+        record_publication(
+            root, link_id=result.link_id, title=title.strip(), markdown=markdown, brief=brief
+        )
     except (OSError, ValueError) as exc:
         # The remote side already succeeded. Never invite a duplicate retry.
         archive_notes.append(f"帖子已公开，勿重发；本地登记失败：{exc}")
@@ -225,7 +228,8 @@ async def publish(
             f"link_id：{result.link_id}",
             f"分区：{', '.join(topic_ids)}",
             f"https://www.xiaoheihe.cn/app/bbs/link/{result.link_id}",
-        ] + archive_notes,
+        ]
+        + archive_notes,
         "link_id": result.link_id,
     }
 

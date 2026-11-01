@@ -1,17 +1,13 @@
-"""发帖的量化自检：字数、套话重复、表情密度、配图数。
-
-规则写在 ``voice/content-strategy.md`` 开头的「硬规则」里，这里是它唯一的
-代码实现。**不要在别处再写一份**——两份实现迟早对不上，然后就会出现
-"脚本说过了、发布流程说没过"这种事。
-
-``scripts/check_post.py`` 是这些函数的命令行包装。
-"""
+"""Shared content presets. Account permissions and publication slots are separate."""
 
 from __future__ import annotations
 
+import json
 import re
+from dataclasses import dataclass
+from pathlib import Path
 
-#: 正文硬底线（用户钉死，不因篇幅压力放宽）
+#: 原有 article 长文规格的底线，不用于 short/flexible
 #: 2026-10-29 用户下调：1500 -> 1000。原话「现在的用户就是很喜欢长篇大论的，
 #: 然后带有情感的或者 1000 字吧」。想改回去只改这一个常量。
 MIN_CHARS = 1000
@@ -26,6 +22,73 @@ MAX_EMOJI = 6
 MAX_MEOW = 4
 #: 配图下限
 MIN_IMAGES = 3
+
+
+@dataclass(frozen=True)
+class ContentProfile:
+    id: str
+    name: str
+    min_chars: int
+    recommended_min: int
+    comfort_max: int
+    min_images: int
+    strict_style: bool
+    writing_hint: str
+
+
+PROFILES = {
+    "article": ContentProfile(
+        "article",
+        "长文",
+        MIN_CHARS,
+        RECOMMENDED_MIN,
+        COMFORT_MAX,
+        MIN_IMAGES,
+        True,
+        "默认延续长文偏好，目标1500-2500字；材料不足不凑字。用户明确指定篇幅时按本次要求写。",
+    ),
+    "short": ContentProfile(
+        "short",
+        "短帖",
+        1,
+        0,
+        800,
+        0,
+        False,
+        "写简洁短帖，直接交代有用信息，不扩成长文；用户指定字数时按要求，无须凑配图。",
+    ),
+    "flexible": ContentProfile(
+        "flexible",
+        "按需",
+        1,
+        0,
+        0,
+        0,
+        False,
+        "篇幅、段落与配图按本次要求和材料决定，不预设字数或强制配图。",
+    ),
+}
+
+
+def get_profile(value: str = "article") -> ContentProfile:
+    if not isinstance(value, str) or value not in PROFILES:
+        raise ValueError("内容规格必须是 article（长文）、short（短帖）或 flexible（按需）")
+    return PROFILES[value]
+
+
+def load_profile(path: Path, override: str | None = None) -> ContentProfile:
+    """CLI and WebUI use the same saved draft choice; explicit CLI flags win."""
+    if override is not None:
+        return get_profile(override)
+    meta = path.with_suffix(".meta.json")
+    if not meta.exists():
+        return get_profile()
+    try:
+        data = json.loads(meta.read_text(encoding="utf-8"))
+        return get_profile(data.get("profile", "article") if isinstance(data, dict) else None)
+    except (OSError, ValueError) as exc:
+        raise ValueError("稿件内容规格读取失败，请检查 .meta.json") from exc
+
 
 _IMG_MD = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _EMOJI = re.compile(r"\[cube_[^\]]+\]")
@@ -43,21 +106,23 @@ def count_body_chars(markdown: str) -> int:
     return len(re.sub(r"\s+", "", text))
 
 
-def check_post(markdown: str) -> tuple[list[str], list[str]]:
+def check_post(markdown: str, *, profile: str = "article") -> tuple[list[str], list[str]]:
     """返回 (必须改的问题, 提示)。问题为空才算过。"""
     problems: list[str] = []
     notes: list[str] = []
+    rules = get_profile(profile)
 
     chars = count_body_chars(markdown)
-    if chars < MIN_CHARS:
-        problems.append(f"正文字数 {chars} < {MIN_CHARS}（硬规则，不到就不发）")
-    elif chars < RECOMMENDED_MIN:
+    images = len(_IMG_MD.findall(markdown))
+    if chars < rules.min_chars and not (rules.min_chars == 1 and images):
+        problems.append(f"正文字数 {chars} < {rules.min_chars}（当前{rules.name}规格）")
+    elif chars < rules.recommended_min:
         notes.append(
-            f"正文字数 {chars} 过了底线，但不到推荐值 {RECOMMENDED_MIN}"
+            f"正文字数 {chars} 过了底线，但不到推荐值 {rules.recommended_min}"
             "（用户偏好长篇，能展开就展开）"
         )
-    elif chars > COMFORT_MAX:
-        notes.append(f"正文字数 {chars} 超过舒适区 {COMFORT_MAX}，考虑拆成两篇")
+    elif rules.comfort_max and chars > rules.comfort_max:
+        notes.append(f"正文字数 {chars} 超过当前规格建议 {rules.comfort_max}，可按需要精简")
 
     # Natural conjunctions are not evidence of bad writing. Ignore image URLs
     # and inline code; detect repetition of stock phrases as an editorial note.
@@ -69,16 +134,16 @@ def check_post(markdown: str) -> tuple[list[str], list[str]]:
         notes.append(f"套话重复：{'、'.join(hits)}，检查是否可用具体事实替换")
 
     emoji_count = len(_EMOJI.findall(markdown))
+    style_issues = problems if rules.strict_style else notes
     if emoji_count > MAX_EMOJI:
-        problems.append(f"表情 {emoji_count} 个 > {MAX_EMOJI}")
+        style_issues.append(f"表情 {emoji_count} 个 > {MAX_EMOJI}")
 
     meow = markdown.count("喵~")
     if meow > MAX_MEOW:
-        problems.append(f"喵~ {meow} 处 > {MAX_MEOW}（密度高了腻）")
+        style_issues.append(f"喵~ {meow} 处 > {MAX_MEOW}（核对是否需要精简）")
 
-    images = len(_IMG_MD.findall(markdown))
-    if images < MIN_IMAGES:
-        problems.append(f"配图 {images} 张 < {MIN_IMAGES}")
+    if images < rules.min_images:
+        problems.append(f"配图 {images} 张 < {rules.min_images}（当前{rules.name}规格）")
 
     headings = _H2.findall(markdown)
     # 四字整齐排比是模板味的典型信号

@@ -19,7 +19,7 @@ from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.plain import markdown_to_plain
 from xhh_agent.content.inline_images import replace_inline_images
-from xhh_agent.content.stats import MIN_CHARS, RECOMMENDED_MIN, check_post, summarize
+from xhh_agent.content.stats import check_post, load_profile, summarize
 from xhh_agent.content.editorial import load_brief, record_publication, review
 from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
@@ -38,6 +38,7 @@ def _editorial_root(source: Path) -> Path:
         if (folder / "pyproject.toml").exists():
             return folder
     return Path.cwd()
+
 
 #: 不指定分区时的落点：PC 游戏。
 DEFAULT_TOPIC_ID = "1"
@@ -78,8 +79,7 @@ async def _resolve_topics(
         candidates = await client.search_topics(name)
         if not candidates:
             raise ValueError(
-                f"找不到分区「{name}」。先在 App 里确认这个分区叫什么，"
-                "或用 --tag 直接指定 ID。"
+                f"找不到分区「{name}」。先在 App 里确认这个分区叫什么，或用 --tag 直接指定 ID。"
             )
         # 同名优先，否则取搜索结果第一个（服务端已按相关度排序）
         exact = [c for c in candidates if c["name"] == name]
@@ -165,10 +165,15 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
     brief = None
     editorial_root = _editorial_root(Path(md_path)) if md_path else Path.cwd()
     if markdown_text:
+        try:
+            rules = load_profile(Path(md_path), getattr(args, "profile", None))
+        except ValueError as exc:
+            print(f"内容规格错误：{exc}", file=sys.stderr)
+            return EXIT_USAGE
         stats = summarize(markdown_text)
-        problems, notes = check_post(markdown_text)
+        problems, notes = check_post(markdown_text, profile=rules.id)
         print(
-            f"字数：{stats['chars']}（下限 {MIN_CHARS}，推荐 {RECOMMENDED_MIN}+）"
+            f"内容规格：{rules.name}  字数：{stats['chars']}（下限 {rules.min_chars}）"
             f"  配图：{stats['images']}  表情：{stats['emoji']}"
             f"  喵~：{stats['meow']}  小标题：{stats['headings']}"
         )
@@ -176,21 +181,31 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             print(f"提示：{note}")
         if problems:
             for problem in problems:
-                print(f"[X] {problem}", file=sys.stderr)
-            if not getattr(args, "allow_short", False):
+                print(f"{'草稿提示：' if draft else '[X] '}{problem}", file=sys.stderr)
+            if not draft and not getattr(args, "allow_short", False):
                 print(
                     "\n已中止：不符合发帖硬规则，没有提交。\n"
                     "先改稿（py scripts/check_post.py 稿子.md 可以单独跑），"
-                    "确实要发就加 --allow-short。",
+                    "短帖或无图稿可选 --profile short / flexible；旧用法 --allow-short 仍可用。",
                     file=sys.stderr,
                 )
                 return EXIT_USAGE
-            print("⚠ 检测到问题，但带了 --allow-short，照发。", file=sys.stderr)
+            print(
+                "草稿可以未完成，保存后继续编辑。"
+                if draft
+                else "⚠ 已按 --allow-short 放行内容规格提醒。",
+                file=sys.stderr,
+            )
 
         try:
             brief = load_brief(Path(md_path))
-            editorial = review(editorial_root, markdown_text, brief,
-                               exclude_link_id=str(getattr(args, "edit_link", "") or ""))
+            editorial = review(
+                editorial_root,
+                markdown_text,
+                brief,
+                exclude_link_id=str(getattr(args, "edit_link", "") or ""),
+                brief_advice=rules.id == "article",
+            )
         except ValueError as exc:
             print(f"写作检查失败：{exc}", file=sys.stderr)
             return EXIT_USAGE
@@ -198,9 +213,9 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             print(f"写作提醒：{note}")
         if editorial["blockers"]:
             for problem in editorial["blockers"]:
-                print(f"[X] {problem}", file=sys.stderr)
-            return EXIT_USAGE
-
+                print(f"{'草稿提示：' if draft else '[X] '}{problem}", file=sys.stderr)
+            if not draft:
+                return EXIT_USAGE
 
     try:
         session = SessionStore(session_path(cfg)).load()
@@ -225,8 +240,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             print(f"  「{name}」-> {topic_id}")
         if len(topics) < 2:
             print(
-                "⚠ 只挂了一个分区。游戏帖建议再加游戏专属分区："
-                "--topic \"游戏名\"",
+                '⚠ 只挂了一个分区。游戏帖建议再加游戏专属分区：--topic "游戏名"',
                 file=sys.stderr,
             )
 
@@ -259,8 +273,13 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             print("注意：这条帖子已经公开，别人能看到了。")
             if markdown_text and result.ok and result.link_id:
                 try:
-                    record_publication(editorial_root, link_id=result.link_id, title=title,
-                                       markdown=markdown_text, brief=brief)
+                    record_publication(
+                        editorial_root,
+                        link_id=result.link_id,
+                        title=title,
+                        markdown=markdown_text,
+                        brief=brief,
+                    )
                 except (OSError, ValueError) as exc:
                     print(f"帖子已公开，勿重发；内容快照登记失败：{exc}", file=sys.stderr)
         return EXIT_OK

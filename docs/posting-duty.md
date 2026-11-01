@@ -2,8 +2,11 @@
 
 ## 约束
 
+本页只约束这项既有长文值班，不限制用户日常改稿、短帖或其他题材任务。
+
 只发《影之刃零》，每 2 小时检查一轮，最多 3 篇/日，发布窗口 09:00–23:00。
 分区 PC游戏(1) + 影之刃零(733575)。正文至少 1000 字，推荐 1500–2500，相关配图至少 3 张。
+检查与发布显式选择 `--profile article`，不继承临时短帖的规格。
 写作唯一规则见 docs/editorial-workflow.md；voice/profile.md 仅定义账号语气。
 
 ## 每轮流程
@@ -16,7 +19,7 @@
 5. 新建 post-*.brief.json，填全选题卡，明确本篇不再展开的旧内容。
 6. `editorial.py plan` 比较读者任务、推理路径、收尾与配图用途，按证据选择路线。
    不靠换标题、堆平台数字或编出实测制造多样。评论和总量数据不能越界支持普遍结论。
-7. 写正文，跑 check_post.py、`editorial.py review 新稿.md --require-brief`。
+7. 写正文，跑 `check_post.py 新稿.md --profile article`、`editorial.py review 新稿.md --require-brief`。
    拦截项必须修复；重复线索必须逐段判断并说明增量，不能仅换排版后忽略。
 8. 跑 `style_profile.py compare 新稿.md`，只作节奏建议。允许不同主题使用相同排版。
 9. 用 draft + --html-out 检查排版；排期允许时按既有授权 publish --edit-link 草稿ID --yes。
@@ -25,7 +28,7 @@
 
 ## 学习
 
-study 产生正文笔记和 pending 写法卡。读全文后填写读者问题、论证顺序、证据用途、适用条件，
+study 产生正文笔记和 pending 写法卡。选择值得复用的样本填写读者问题、论证顺序、证据用途、适用条件，
 运行 editorial.py learn 保存为 ready。只抓下来不算学完。
 
 ## 汇报

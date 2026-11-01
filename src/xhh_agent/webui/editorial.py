@@ -9,6 +9,7 @@ import time
 import uuid
 from pathlib import Path
 
+from xhh_agent.content.stats import get_profile, load_profile
 from xhh_agent.content.editorial import (
     STRUCTURES,
     brief_path,
@@ -96,6 +97,10 @@ def _editor_action(root: Path, body: dict) -> dict:
             not isinstance(meta, dict) or not isinstance(meta.get("title", ""), str)
         ):
             raise ValueError("稿件信息格式错误")
+        if meta is not None:
+            saved_profile = (
+                get_profile(meta["profile"]) if "profile" in meta else load_profile(path)
+            ).id
         if body.get("revision") != revision(path):
             raise ValueError("稿件已被其他窗口修改，请重新读取后合并，尚未覆盖文件")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -109,6 +114,7 @@ def _editor_action(root: Path, body: dict) -> dict:
                     "title": meta.get("title", "")[:100],
                     "topic": str(meta.get("topic", "影之刃零"))[:100],
                     "notes": str(meta.get("notes", ""))[:40_000],
+                    "profile": saved_profile,
                 },
             )
         path.write_text(markdown, encoding="utf-8")
