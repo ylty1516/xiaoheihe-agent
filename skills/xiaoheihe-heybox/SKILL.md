@@ -99,11 +99,11 @@ py -m xhh_agent.cli.main reply --queue-id <id> --text "回复内容" --send
 - [ ] 标题与正文的一级标题不重复
 - [ ] 没有无根据的事实陈述（「我之前一直没发」「我玩过 100 小时」这类）
 - [ ] 没有虚构第一人称经历（规格 C4：AI 无从知晓的事一律不写）
-- [ ] 正文 200–800 字，不是小作文也不像敷衍
+- [ ] 正文至少 1000 字，推荐 1500–2500；写作规则以 docs/editorial-workflow.md 为准
 - [ ] 今日发帖数未超 3 篇（硬上限，代码层面也会拦）
 - [ ] `--html-out` 出来的文件里：无裸露 `<pre>`/`<table>`，无 `data:image/`（说明转换或上传失败）
 - [ ] 内容不涉及政治、医疗、法律、真人评价、价格是否合理的判断
-- [ ] 读一遍像不像人会说的话（有转折词堆砌就是 AI 腔，回去改）
+- [ ] 读一遍像不像人会说的话（检查套话重复、证据不足与核心问题是否清楚）
 
 发布后立刻核对：`/bbs/app/link/drafts` 或帖子列表里能看到，才算真发出去。
 
@@ -162,16 +162,18 @@ fetch_content("https://github.com/trending")
 素材里必须捞到**具体的东西**：价格、销量、时长、某个机制的名字、star 增速。
 没有具体信息就是在写水文。
 
-### 写稿结构
+### 写稿结构与去重
 
-游戏：`钩子（观察/反常识结论）→ 具体信息 3-4 段 → 我的判断 1 段 → 抛问题`
-GitHub：`这是什么（说人话）→ 解决什么痛点 → 我试没试（要诚实）→ 值不值得上手 → 抛问题`
+先读 `docs/editorial-workflow.md`，填 `.brief.json` 选题卡，再用
+`py scripts/editorial.py plan 稿子.md` 比较三种论证路线。用证据、案例、反例和适用边界展开，
+不强制四段式、相邻话题、固定提问收尾。发布前跑
+`py scripts/editorial.py review 稿子.md --require-brief`。排版相似仅提醒。
 
 ### 配图（至少 3 张，能动就动）
 
 - **至少 3 张图**，低于这个数不发
 - Steam 图直接写 URL（`https://cdn.akamai.steamstatic.com/steam/apps/<appid>/library_hero.jpg`）
-- **动图只能本地造或本地文件**——外链 gif 转存必失败
+- **动图通过现有下载与上传流程处理**，发布前核对转存结果
 - 造动图：`py scripts/make_gif.py --out .data/x.gif --title "..." --line "..." --line "..."`
 - Markdown 里写 `![说明](.data/x.gif)` 或 Steam URL，发帖时统一转存
 
@@ -266,7 +268,7 @@ py -m xhh_agent.cli.main dm --to <user_id> --text "内容" --send  # 真发
 读 `voice/profile.md`（在项目根目录的 `voice/` 下）。要点：
 
 - 女性语气，句尾 **`喵~`**，每条最多一个
-- **少用转折词**（不过/但是/其实/虽然）——这是 AI 腔的主要来源
+- **自然使用连接词**；避免套话堆叠，文章语气以 docs/editorial-workflow.md 为准
 - 脏话只修饰事情不修饰人：`靠` / `卧槽` / `离谱` / `麻了`，约 3–5 条一次
 - 不用「老哥」「兄弟」称呼别人
 - 15–40 字，超过 60 字就该怀疑在写小作文

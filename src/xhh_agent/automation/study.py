@@ -20,6 +20,7 @@ from pathlib import Path
 
 from xhh_agent.protocol.models import FeedPost
 from xhh_agent.store.db import Store
+from xhh_agent.content.editorial import write_json
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,26 @@ def pick_high_quality(
     if store is not None:
         candidates = [p for p in candidates if store.get("study", p.link_id) is None]
     candidates.sort(key=lambda p: p.engagement, reverse=True)
-    return candidates[:count]
+    # Title keywords are only a sampling hint, not a quality judgment.
+    # Keep the hottest item, then prefer a different purpose when available.
+    def category(post: FeedPost) -> str:
+        for name, words in (
+            ("排障", ("设置", "怎么", "攻略", "解决")),
+            ("机制", ("机制", "弹反", "系统")),
+            ("更新", ("更新", "补丁")),
+            ("体验", ("评测", "体验", "感受")),
+        ):
+            if any(word in post.title for word in words):
+                return name
+        return "其他"
+
+    picked, seen = [], set()
+    while candidates and len(picked) < count:
+        index = next((i for i, p in enumerate(candidates) if category(p) not in seen), 0)
+        post = candidates.pop(index)
+        picked.append(post)
+        seen.add(category(post))
+    return picked
 
 
 @dataclass
@@ -170,7 +190,7 @@ class StudyRunner:
             f"- **数据**: 赞 {detail.get('up', post.up)} / 评论 "
             f"{detail.get('comment_num', post.comment_num)}\n"
             f"- **链接**: https://www.xiaoheihe.cn/app/bbs/link/{post.link_id}\n\n"
-            f"## 正文\n\n```text\n{detail.get('content') or detail.get('description') or post.description}\n```\n\n"
+            f"## 正文\n\n```text\n{blocks_to_text(detail.get('content') or detail.get('description') or post.description)}\n```\n\n"
             f"## 待分析\n\n"
             f"读完上面这段正文，回答：\n\n"
             f"1. **开头**：第一句怎么起手的？直接说事还是先铺垫？\n"
@@ -183,4 +203,10 @@ class StudyRunner:
             f"## 原始数据\n\n```json\n{json.dumps(detail, ensure_ascii=False, indent=2)}\n```\n"
         )
         path.write_text(body, encoding="utf-8")
+        write_json(path.with_suffix(".writing.json"), {
+            "status": "pending", "link_id": post.link_id,
+            "source_url": f"https://www.xiaoheihe.cn/app/bbs/link/{post.link_id}",
+            "article_type": "", "reader_question": "", "argument_order": [],
+            "evidence_usage": [], "applicable_when": "", "avoid": [],
+        })
         return path

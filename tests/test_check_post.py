@@ -59,9 +59,15 @@ def test_short_post_is_rejected():
     assert any(str(MIN_CHARS) in p for p in problems)
 
 
-def test_turn_words_are_rejected():
-    problems, _ = check_post(_md(body=BODY + "不过我觉得这个设计有问题。"))
-    assert any("转折词" in p for p in problems)
+def test_natural_conjunctions_and_embedded_words_are_allowed():
+    problems, _ = check_post(_md(body=BODY + "这个Boss打不过，但是可以先升级。"))
+    assert problems == []
+
+
+def test_repeated_stock_phrases_are_advisory():
+    problems, notes = check_post(_md(body=BODY + "综上我们核对条件。综上需要注明版本。"))
+    assert problems == []
+    assert any("套话重复" in note for note in notes)
 
 
 def test_too_many_emoji_are_rejected():

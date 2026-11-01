@@ -371,6 +371,18 @@
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   }
 </style>
+<style>
+  .writing-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .writing-grid .wide { grid-column:1/-1; }
+  textarea { width:100%; resize:vertical; min-height:72px; padding:10px 12px; border:1px solid var(--hair-2); border-radius:6px; background:var(--s1); color:var(--text); font:inherit; }
+  textarea:focus { outline:1px solid var(--accent-2); }
+  #articleBody { min-height:350px; line-height:1.9; }
+  #planResults { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:16px; }
+  .outline-option { padding:16px; border:1px solid var(--hair-2); border-radius:6px; }
+  #repeatResults details { padding:12px 0; border-top:1px solid var(--hair); }
+  #repeatResults p, #repeatResults blockquote { white-space:pre-wrap; overflow-wrap:anywhere; }
+  @media(max-width:760px) { .writing-grid, #planResults { grid-template-columns:1fr; } }
+</style>
 </head>
 <body>
 <div class="ambient"></div>
@@ -478,6 +490,33 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="panel" id="writing" style="margin-top:22px">
+    <div class="panel-head"><h2>写作台</h2><span class="rule">先定问题与证据，再选结构</span></div>
+    <div class="panel-body">
+      <div class="bar"><input id="draftName" aria-label="稿件文件名" placeholder="post-new.md" value="post-new.md" /><button id="btnNewDraft">读取 / 新建稿件</button><span class="hint" id="saveState">选择上方稿件，或在这里新建</span></div>
+      <div class="writing-grid" style="margin-top:18px">
+        <div class="field"><label for="brief_reader">写给谁</label><input id="brief_reader" placeholder="例如：刚接触弹反的新玩家" /></div>
+        <div class="field"><label for="brief_question">本篇只回答什么问题</label><input id="brief_question" /></div>
+        <div class="field"><label for="brief_conclusion">主要结论与适用条件</label><textarea id="brief_conclusion"></textarea></div>
+        <div class="field"><label for="brief_new_information">相比已发文章，新增什么</label><textarea id="brief_new_information"></textarea></div>
+        <div class="field"><label for="brief_exclude">本篇不再展开的旧内容（每行一条）</label><textarea id="brief_exclude"></textarea></div>
+        <div class="field"><label for="brief_structure">文章类型</label><select id="brief_structure"><option value="mechanism">机制拆解</option></select><span class="hint">按问题选择；没有所需证据就换类型。</span></div>
+        <div class="field wide"><label for="brief_facts">具体事实与来源（每行：事实 | https://来源链接）</label><textarea id="brief_facts" placeholder="保留版本、时间和适用条件；填写链接不代表已核实"></textarea></div>
+      </div>
+      <button id="btnPlans">查看三种提纲</button><div id="planResults"></div>
+      <div class="field" style="margin-top:24px"><label for="articleBody">正文 · Markdown</label><textarea id="articleBody" placeholder="围绕核心问题展开证据、案例和边界，不必强行补相邻话题。"></textarea></div>
+      <div class="bar"><button id="btnSaveDraft" disabled>保存稿件和选题卡</button><span class="hint">只保存本地。修改后须重新体检。</span></div>
+      <details style="margin-top:20px"><summary>局部改写 · 保留其余正文</summary>
+        <p class="hint">在正文中选中一段，填写要求后生成带证据约束的任务，可复制给当前 AI。将结果贴入替换区，或直接编辑选段，再应用并保存。</p>
+        <div class="field"><label for="rewriteInstruction">改写要求</label><input id="rewriteInstruction" placeholder="例如：补清操作顺序，保留数值和来源" /></div>
+        <button id="btnCapture">提取选段并生成改写任务</button>
+        <div class="field"><label for="rewritePrompt">改写任务（可复制）</label><textarea id="rewritePrompt" readonly></textarea></div>
+        <div class="field"><label for="replacement">替换段落</label><textarea id="replacement"></textarea></div><button id="btnApplyParagraph">仅替换选中段落</button>
+      </details>
+      <div id="repeatResults" style="margin-top:20px"></div>
     </div>
   </section>
 
@@ -737,15 +776,20 @@ async function loadDrafts() {
 
 function syncTitle() {
   const opt = $("draftSel").selectedOptions[0];
-  if (opt && opt.dataset.title) $("titleInput").value = opt.dataset.title;
+  if (!window.editorialWorkbench && opt && opt.dataset.title) $("titleInput").value = opt.dataset.title;
   preflight = null;
   $("btnPublish").disabled = true;
   $("warnBox").classList.remove("on");
   setChips([{ text: "还没体检" }]);
   $("issues").innerHTML = "";
+  if (window.editorialWorkbench && $("draftSel").value) window.editorialWorkbench.load($("draftSel").value);
 }
 
 async function runPreflight() {
+  if (window.editorialWorkbench) {
+    try { await window.editorialWorkbench.save(); }
+    catch (err) { toast("保存失败：" + err.message, "bad"); return; }
+  }
   const file = $("draftSel").value;
   if (!file) { toast("先选一篇稿子", "bad"); return; }
   setChips([{ text: "体检中…" }]);
@@ -772,10 +816,11 @@ async function runPreflight() {
     { text: s.images + " 张图", kind: s.images >= 3 ? "good" : "bad" },
     { text: "表情 " + s.emoji },
     { text: "小标题 " + s.headings },
-    { text: preflight.style.ok ? "结构不撞车" : "结构撞车", kind: preflight.style.ok ? "good" : "warn" },
+    { text: preflight.style.ok ? "排版已检查" : "排版相近（提醒）", kind: preflight.style.ok ? "good" : "warn" },
     { text: preflight.slot.allowed ? "排期允许" : "排期不允许", kind: preflight.slot.allowed ? "good" : "bad" }
   ]);
   renderIssues(preflight.blockers, preflight.warnings);
+  if (preflight.editorial && window.editorialWorkbench) window.editorialWorkbench.renderReview(preflight.editorial);
   $("btnPublish").disabled = !preflight.ok;
   toast(preflight.ok ? "体检通过" : "有硬规则没过", preflight.ok ? "good" : "bad");
 }
@@ -873,12 +918,13 @@ document.addEventListener("keydown", (e) => {
 });
 
 refresh();
-loadDrafts();
+window.addEventListener("DOMContentLoaded", loadDrafts);
 setInterval(refresh, 5000);
 requestAnimationFrame(() => {
   const active = document.querySelector(".tab.active");
   if (active) moveInk(active);
 });
 </script>
+<script src="/editorial.js"></script>
 </body>
 </html>

@@ -973,8 +973,9 @@ class HeyBoxConverter:
             names = ["msyh.ttc", "simhei.ttf"]
             for n in names:
                 try:
-                    ImageFont.truetype(n, 12)
-                    return n
+                    # Pillow resolves Windows font filenames via its font directory;
+                    # Pygments needs a real path or it treats msyh.ttc as a family name.
+                    return str(ImageFont.truetype(n, 12).path)
                 except (IOError, OSError):
                     continue
             return None
@@ -982,8 +983,7 @@ class HeyBoxConverter:
         if system == "Darwin":
             for n in ["PingFang SC.ttc", "Arial Unicode.ttf"]:
                 try:
-                    ImageFont.truetype(n, 12)
-                    return n
+                    return str(ImageFont.truetype(n, 12).path)
                 except (IOError, OSError):
                     continue
             return None

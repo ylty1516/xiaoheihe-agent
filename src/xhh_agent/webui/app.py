@@ -26,6 +26,7 @@ from xhh_agent.store.db import Store
 
 from .publishing import list_drafts, preflight, publish
 from .state import build_state
+from .editorial import editor_action, read_draft
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,9 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     async def index(_: web.Request) -> web.FileResponse:
         return web.FileResponse(STATIC_DIR / "index.html")
 
+    async def editorial_script(_: web.Request) -> web.FileResponse:
+        return web.FileResponse(STATIC_DIR / "editorial.js")
+
     async def state(request: web.Request) -> web.Response:
         payload = await asyncio.to_thread(build_state, base)
         payload["duty_url"] = request.app["duty_url"]
@@ -156,6 +160,21 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
         )
         return web.json_response(result)
 
+    async def editorial_view(request: web.Request) -> web.Response:
+        try:
+            if request.method == "GET":
+                result = await asyncio.to_thread(read_draft, base, request.query.get("file", ""))
+            else:
+                if request.content_type != "application/json":
+                    raise ValueError("写作操作需要 application/json 请求")
+                body = await request.json()
+                if not isinstance(body, dict):
+                    raise ValueError("请求体必须是 JSON 对象")
+                result = await asyncio.to_thread(editor_action, base, body)
+        except (OSError, ValueError, UnicodeDecodeError) as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        return web.json_response(result)
+
     async def publish_view(request: web.Request) -> web.Response:
         try:
             body = await request.json()
@@ -184,10 +203,13 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     app = web.Application()
     app["duty_url"] = ""
     app.router.add_get("/", index)
+    app.router.add_get("/editorial.js", editorial_script)
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/drafts", drafts)
     app.router.add_post("/api/action", action)
     app.router.add_post("/api/preflight", preflight_view)
+    app.router.add_get("/api/editorial", editorial_view)
+    app.router.add_post("/api/editorial", editorial_view)
     app.router.add_post("/api/publish", publish_view)
     return app
 

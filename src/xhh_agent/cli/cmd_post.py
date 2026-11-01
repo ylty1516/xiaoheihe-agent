@@ -20,6 +20,7 @@ from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.plain import markdown_to_plain
 from xhh_agent.content.inline_images import replace_inline_images
 from xhh_agent.content.stats import MIN_CHARS, RECOMMENDED_MIN, check_post, summarize
+from xhh_agent.content.editorial import load_brief, record_publication, review
 from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import LoginExpired, XhhError
@@ -29,6 +30,14 @@ EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_USAGE = 2
 EXIT_LOGIN_EXPIRED = 3
+
+
+def _editorial_root(source: Path) -> Path:
+    """Use the project containing the source, falling back to the working directory."""
+    for folder in source.resolve().parents:
+        if (folder / "pyproject.toml").exists():
+            return folder
+    return Path.cwd()
 
 #: 不指定分区时的落点：PC 游戏。
 DEFAULT_TOPIC_ID = "1"
@@ -153,6 +162,8 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
     # 发帖自检：规则见 voice/content-strategy.md「硬规则」。
     # 这里拿**Markdown 源文**算，不拿转换后的 HTML——HTML 里全是标签，
     # 算出来的“字数”没有意义。
+    brief = None
+    editorial_root = _editorial_root(Path(md_path)) if md_path else Path.cwd()
     if markdown_text:
         stats = summarize(markdown_text)
         problems, notes = check_post(markdown_text)
@@ -175,6 +186,20 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
                 )
                 return EXIT_USAGE
             print("⚠ 检测到问题，但带了 --allow-short，照发。", file=sys.stderr)
+
+        try:
+            brief = load_brief(Path(md_path))
+            editorial = review(editorial_root, markdown_text, brief,
+                               exclude_link_id=str(getattr(args, "edit_link", "") or ""))
+        except ValueError as exc:
+            print(f"写作检查失败：{exc}", file=sys.stderr)
+            return EXIT_USAGE
+        for note in editorial["warnings"]:
+            print(f"写作提醒：{note}")
+        if editorial["blockers"]:
+            for problem in editorial["blockers"]:
+                print(f"[X] {problem}", file=sys.stderr)
+            return EXIT_USAGE
 
 
     try:
@@ -225,10 +250,19 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             edit_link_id=str(getattr(args, "edit_link", "") or ""),
             draft=draft,
         )
+        if not result.ok:
+            print(f"提交失败：{result.message or '服务端未确认成功'}", file=sys.stderr)
+            return EXIT_ERROR
         mode = "草稿" if result.is_draft else "公开发布"
         print(f"\n已{mode}" + (f"，link_id={result.link_id}" if result.link_id else ""))
         if not result.is_draft:
             print("注意：这条帖子已经公开，别人能看到了。")
+            if markdown_text and result.ok and result.link_id:
+                try:
+                    record_publication(editorial_root, link_id=result.link_id, title=title,
+                                       markdown=markdown_text, brief=brief)
+                except (OSError, ValueError) as exc:
+                    print(f"帖子已公开，勿重发；内容快照登记失败：{exc}", file=sys.stderr)
         return EXIT_OK
     except LoginExpired as exc:
         print(str(exc), file=sys.stderr)

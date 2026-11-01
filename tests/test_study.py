@@ -61,6 +61,20 @@ async def test_study_writes_notes(tmp_path, fake_feed_client):
     text = files[0].read_text(encoding="utf-8")
     assert "link_id" in text
     assert "写法" in text or "结构" in text
+    import json
+    card = json.loads(next(notes_dir.glob("*.writing.json")).read_text(encoding="utf-8"))
+    assert card["status"] == "pending"
+    assert "argument_order" in card
+
+
+def test_study_diversifies_title_categories_after_hottest():
+    posts = [_post("a", up=100, comments=0), _post("b", up=90, comments=0),
+             _post("c", up=80, comments=0)]
+    # FeedPost is mutable; these are sampling hints only.
+    from dataclasses import replace
+    posts = [replace(posts[0], title="画面设置"), replace(posts[1], title="操作攻略"),
+             replace(posts[2], title="机制拆解")]
+    assert [p.link_id for p in pick_high_quality(posts, count=2)] == ["a", "c"]
 
 
 async def test_study_marks_posts_as_read(tmp_path, fake_feed_client):

@@ -15,6 +15,12 @@ needs_cjk_font = pytest.mark.skipif(
 )
 
 
+@needs_cjk_font
+def test_render_font_is_a_file_pygments_can_open():
+    from pathlib import Path
+    assert Path(HeyBoxConverter._find_font_path()).is_file()
+
+
 def test_paragraph_becomes_p():
     out = markdown_to_heybox_html("这是一段普通文字。")
     assert "<p>" in out

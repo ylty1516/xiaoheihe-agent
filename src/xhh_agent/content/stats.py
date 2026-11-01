@@ -1,4 +1,4 @@
-"""发帖的量化自检：字数、转折词、表情密度、配图数。
+"""发帖的量化自检：字数、套话重复、表情密度、配图数。
 
 规则写在 ``voice/content-strategy.md`` 开头的「硬规则」里，这里是它唯一的
 代码实现。**不要在别处再写一份**——两份实现迟早对不上，然后就会出现
@@ -20,28 +20,12 @@ MIN_CHARS = 1000
 RECOMMENDED_MIN = 1500
 #: 舒适区上界，超过就提示拆篇
 COMFORT_MAX = 2500
-#: 转折词 / AI 腔词，一个都不该有
-TURN_WORDS = (
-    "不过",
-    "但是",
-    "然而",
-    "其实",
-    "虽然",
-    "说实话",
-    "综上",
-    "值得注意",
-    "此外",
-    "因此",
-    "总而言之",
-)
 #: 整篇表情上限（voice/emoji.md）
 MAX_EMOJI = 6
 #: 整篇 `喵~` 上限（voice/profile.md：3–4 处）
 MAX_MEOW = 4
 #: 配图下限
 MIN_IMAGES = 3
-#: 小标题上限，超过像说明书
-MAX_HEADINGS = 4
 
 _IMG_MD = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _EMOJI = re.compile(r"\[cube_[^\]]+\]")
@@ -75,9 +59,14 @@ def check_post(markdown: str) -> tuple[list[str], list[str]]:
     elif chars > COMFORT_MAX:
         notes.append(f"正文字数 {chars} 超过舒适区 {COMFORT_MAX}，考虑拆成两篇")
 
-    hits = [w for w in TURN_WORDS if w in markdown]
+    # Natural conjunctions are not evidence of bad writing. Ignore image URLs
+    # and inline code; detect repetition of stock phrases as an editorial note.
+    prose = _IMG_MD.sub("", markdown)
+    prose = re.sub(r"`[^`]*`", "", prose)
+    stock = ("综上", "值得注意的是", "总而言之", "不难发现", "由此可见")
+    hits = [w for w in stock if prose.count(w) >= 2]
     if hits:
-        problems.append(f"出现转折词/AI 腔词：{'、'.join(hits)}")
+        notes.append(f"套话重复：{'、'.join(hits)}，检查是否可用具体事实替换")
 
     emoji_count = len(_EMOJI.findall(markdown))
     if emoji_count > MAX_EMOJI:
@@ -92,8 +81,6 @@ def check_post(markdown: str) -> tuple[list[str], list[str]]:
         problems.append(f"配图 {images} 张 < {MIN_IMAGES}")
 
     headings = _H2.findall(markdown)
-    if len(headings) > MAX_HEADINGS:
-        notes.append(f"小标题 {len(headings)} 个，超过 {MAX_HEADINGS} 个像说明书")
     # 四字整齐排比是模板味的典型信号
     uniform = [h for h in headings if len(h.strip()) == 4]
     if len(uniform) >= 3:
