@@ -205,11 +205,15 @@ async def _reply(
         if row is None:
             print(f"队列里没有 id={queue_id}", file=sys.stderr)
             return EXIT_USAGE
-        if row["state"] == "rejected":
-            print("这条已被拒绝，不发送。", file=sys.stderr)
+        if row["state"] not in {"pending", "approved"}:
+            print("这条已处理或发送状态待核对，不发送。", file=sys.stderr)
             return EXIT_USAGE
 
         incoming = json.loads(row["incoming"]) if row["incoming"] else {}
+        if incoming.get("must_human"):
+            print("这条需要人工在 App 处理，不发送。", file=sys.stderr)
+            store.close()
+            return EXIT_USAGE
         link_id = str(incoming.get("link_id") or "")
         reply_id = str(incoming.get("reply_id") or "")
         root_id = str(incoming.get("root_id") or reply_id)
@@ -252,15 +256,25 @@ async def _reply(
 
     client = ProtocolClient(session, cfg)
     try:
+        if not store.transition_queue(queue_id, ("pending", "approved"), "sending"):
+            print("这条已被其他任务处理，不重复发送。", file=sys.stderr)
+            store.close()
+            return EXIT_USAGE
         result = await client.reply_comment(
             link_id=link_id, reply_id=reply_id, root_id=root_id, text=content
         )
+        if not result.ok or not result.ack_id:
+            raise XhhError("没有收到可靠回执，请先到 App 核对，勿重复发送")
     except LoginExpired as exc:
+        store.set_queue_state(queue_id, "uncertain")
+        store.close()
         print(str(exc), file=sys.stderr)
         return EXIT_LOGIN_EXPIRED
     except XhhError as exc:
+        store.set_queue_state(queue_id, "uncertain")
         store.mark("comment", row["target_id"], "failed", error=str(exc))
         print(f"发送失败：{exc}", file=sys.stderr)
+        store.close()
         return EXIT_ERROR
     finally:
         await client.close()

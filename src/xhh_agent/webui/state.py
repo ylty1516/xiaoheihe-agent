@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import time
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -88,6 +89,15 @@ def _queue(root: Path) -> dict:
     return {"pending": counts.get("pending", 0), "items": items, "counts": counts}
 
 
+def _note_title(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")[:3000]
+    except OSError:
+        return "学习笔记"
+    match = re.search(r"\*\*标题\*\*:\s*(.+)", text)
+    return match[1] if match else "学习笔记"
+
+
 def _notes(root: Path, limit: int = 5) -> dict:
     folder = root / "notes" / "study"
     if not folder.exists():
@@ -98,6 +108,7 @@ def _notes(root: Path, limit: int = 5) -> dict:
         "latest": [
             {
                 "name": p.stem,
+                "title": _note_title(p),
                 "at": datetime.fromtimestamp(p.stat().st_mtime).strftime("%m-%d %H:%M"),
             }
             for p in files[:limit]
@@ -160,9 +171,7 @@ def build_state(root: Path, *, now: float | None = None) -> dict:
         "queue": _queue(root),
         "notes": _notes(root),
         "drafts": _drafts(root),
-        "logs": {
-            name: _tail(root / ".data" / "logs" / f"{name}.log") for name in LOG_NAMES
-        },
+        "logs": {name: _tail(root / ".data" / "logs" / f"{name}.log") for name in LOG_NAMES},
         "docs": {
             "duty": (root / "docs" / "posting-duty.md").exists(),
             "styles": (root / "docs" / "style-ledger.md").exists(),

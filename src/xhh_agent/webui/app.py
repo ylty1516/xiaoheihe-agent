@@ -131,7 +131,9 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
         try:
             body = await request.json()
         except (json.JSONDecodeError, UnicodeDecodeError):
-            return web.json_response({"ok": False, "title": "请求体不是 JSON", "lines": []}, status=400)
+            return web.json_response(
+                {"ok": False, "title": "请求体不是 JSON", "lines": []}, status=400
+            )
 
         name = str(body.get("name", ""))
         if name not in SAFE_ACTIONS:
@@ -185,7 +187,9 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
         try:
             body = await request.json()
         except (json.JSONDecodeError, UnicodeDecodeError):
-            return web.json_response({"ok": False, "title": "请求体不是 JSON", "lines": []}, status=400)
+            return web.json_response(
+                {"ok": False, "title": "请求体不是 JSON", "lines": []}, status=400
+            )
         # 唯一会发出内容的路由：必须显式 confirm，不给开关、不给环境变量后门。
         if body.get("confirm") is not True:
             return web.json_response(
@@ -206,7 +210,19 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
         )
         return web.json_response(result)
 
-    app = web.Application()
+    @web.middleware
+    async def local_mutation(request, handler):
+        if request.method not in {"GET", "HEAD"}:
+            origin = request.headers.get("Origin")
+            if origin and origin != f"{request.scheme}://{request.host}":
+                return web.json_response({"ok": False, "error": "只能从本地面板操作"}, status=403)
+            if request.path != "/api/images" and request.content_type != "application/json":
+                return web.json_response(
+                    {"ok": False, "error": "请求须为 application/json"}, status=400
+                )
+        return await handler(request)
+
+    app = web.Application(middlewares=[local_mutation])
     app["duty_url"] = ""
     app.router.add_get("/", index)
     app.router.add_get("/editorial.js", editorial_script)
@@ -219,12 +235,13 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     app.router.add_get("/api/editorial", editorial_view)
     app.router.add_post("/api/editorial", editorial_view)
     app.router.add_post("/api/publish", publish_view)
+    from .workspace import install_workspace_routes
+
+    install_workspace_routes(app, base, config)
     return app
 
 
-async def serve(
-    *, host: str = "127.0.0.1", port: int = 8765, root: Path | None = None
-) -> None:
+async def serve(*, host: str = "127.0.0.1", port: int = 8765, root: Path | None = None) -> None:
     """起服务，一直跑到 Ctrl+C。"""
     app = create_app(root)
     app["duty_url"] = f"http://{host}:{port}/"

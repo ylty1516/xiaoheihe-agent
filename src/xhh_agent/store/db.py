@@ -163,6 +163,15 @@ class Store:
         self._conn.execute("UPDATE queue SET state=? WHERE id=?", (state, queue_id))
         self._conn.commit()
 
+    def transition_queue(self, queue_id: int, expected: tuple[str, ...], state: str) -> bool:
+        placeholders = ",".join("?" for _ in expected)
+        cursor = self._conn.execute(
+            f"UPDATE queue SET state=? WHERE id=? AND state IN ({placeholders})",
+            (state, queue_id, *expected),
+        )
+        self._conn.commit()
+        return cursor.rowcount == 1
+
     def approve(self, queue_id: int) -> None:
         self.set_queue_state(queue_id, "approved")
 

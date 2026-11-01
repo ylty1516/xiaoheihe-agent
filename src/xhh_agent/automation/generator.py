@@ -163,13 +163,13 @@ class OpenAICompatClient:
         self._api_key = api_key
         self._timeout = timeout_seconds
 
-    async def complete(self, *, prompt: str, model: str) -> str:
+    async def complete(self, *, prompt: str, model: str, max_tokens: int = 300) -> str:
         url = f"{self._base_url}/chat/completions"
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.9,
-            "max_tokens": 300,
+            "max_tokens": max_tokens,
         }
         timeout = aiohttp.ClientTimeout(total=self._timeout)
         async with aiohttp.ClientSession(timeout=timeout) as session:

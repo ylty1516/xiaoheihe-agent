@@ -34,16 +34,4 @@
   document.addEventListener("visibilitychange", update);
   update();
 
-  // Keep navigation anchored to the existing sections, with a visible location.
-  const links = [...document.querySelectorAll(".nav a")];
-  const observed = new Map();
-  const observer = new IntersectionObserver(entries => {
-    for (const entry of entries) observed.set(entry.target.id, entry.isIntersecting);
-    const active = links.find(link => observed.get(link.hash.slice(1)));
-    for (const link of links) {
-      if (link === active) link.setAttribute("aria-current", "location");
-      else link.removeAttribute("aria-current");
-    }
-  }, {rootMargin: "-70px 0px -45% 0px"});
-  links.forEach(link => { const section = document.querySelector(link.hash); if (section) observer.observe(section); });
 })();

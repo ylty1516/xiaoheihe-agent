@@ -23,7 +23,8 @@ from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.stats import check_post, summarize
 from xhh_agent.content.editorial import load_brief, load_history, record_publication, review
 from xhh_agent.content.style import compare_styles
-from .editorial import draft_path
+from .editorial import draft_path, read_metadata
+from .media import publication_markdown
 from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import LoginExpired, XhhError
 from xhh_agent.protocol.session import SessionStore
@@ -58,6 +59,7 @@ def list_drafts(root: Path) -> list[dict]:
                 "chars": stats["chars"],
                 "images": stats["images"],
                 "suggested_title": _suggest_title(text, path),
+                "modified_at": path.stat().st_mtime,
             }
         )
     return out
@@ -66,6 +68,9 @@ def list_drafts(root: Path) -> list[dict]:
 def _suggest_title(markdown: str, path: Path) -> str:
     """标题建议：正文第一个非标题、非图片的行，截到 30 字。"""
     try:
+        metadata_title = read_metadata(path).get("title", "")
+        if isinstance(metadata_title, str) and metadata_title.strip():
+            return metadata_title.strip()[:MAX_TITLE]
         title = (load_brief(path) or {}).get("title", "")
         if isinstance(title, str) and title.strip():
             return title.strip()[:MAX_TITLE]
@@ -177,7 +182,10 @@ async def publish(
     path = _data_dir(root) / check["file"]
     markdown = path.read_text(encoding="utf-8")
     brief = load_brief(path)
-    html = markdown_to_heybox_html(markdown)
+    try:
+        html = markdown_to_heybox_html(publication_markdown(root, markdown))
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "title": "配图无法读取", "lines": [str(exc)]}
 
     # cfg.db_path 可能是相对路径（默认 .data/xhh.db）。面板可能从别处启动，
     # 所以一律按项目根解析，不然会去读一个不存在的 session.json。
