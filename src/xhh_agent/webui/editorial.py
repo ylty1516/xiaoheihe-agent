@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 
 from xhh_agent.content.stats import get_profile, load_profile
+from xhh_agent.content.writing import GENERAL_TOPIC, subject, genre
 from xhh_agent.content.editorial import (
     STRUCTURES,
     brief_path,
@@ -98,6 +99,9 @@ def _editor_action(root: Path, body: dict) -> dict:
         ):
             raise ValueError("稿件信息格式错误")
         if meta is not None:
+            previous_meta = read_metadata(path)
+            selected_subject = subject(meta.get("subject", previous_meta.get("subject", "auto")))
+            selected_genre = genre(meta.get("genre", previous_meta.get("genre", "auto")))
             saved_profile = (
                 get_profile(meta["profile"]) if "profile" in meta else load_profile(path)
             ).id
@@ -112,9 +116,21 @@ def _editor_action(root: Path, body: dict) -> dict:
                 path.with_suffix(".meta.json"),
                 {
                     "title": meta.get("title", "")[:100],
-                    "topic": str(meta.get("topic", "影之刃零"))[:100],
+                    "topic": str(meta.get("topic", previous_meta.get("topic", GENERAL_TOPIC)))[
+                        :100
+                    ],
                     "notes": str(meta.get("notes", ""))[:40_000],
                     "profile": saved_profile,
+                    **(
+                        {"subject": selected_subject["id"]}
+                        if "subject" in meta or "subject" in previous_meta
+                        else {}
+                    ),
+                    **(
+                        {"genre": selected_genre["id"]}
+                        if "genre" in meta or "genre" in previous_meta
+                        else {}
+                    ),
                 },
             )
         path.write_text(markdown, encoding="utf-8")
@@ -185,7 +201,10 @@ def manage_draft(root: Path, body: dict) -> dict:
         target = draft_path(root, f"post-{time.strftime('%Y%m%d')}-{uuid.uuid4().hex[:12]}.md")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("", encoding="utf-8")
-        write_json(target.with_suffix(".meta.json"), {"title": "", "topic": "影之刃零"})
+        write_json(
+            target.with_suffix(".meta.json"),
+            {"title": "", "topic": GENERAL_TOPIC, "subject": "auto", "genre": "auto"},
+        )
         return read_draft(root, target.name)
     source = draft_path(root, str(body.get("file", "")))
     if not source.exists():

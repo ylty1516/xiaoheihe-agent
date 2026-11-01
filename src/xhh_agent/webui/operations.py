@@ -194,12 +194,17 @@ class Operations:
                 return {"ok": True, "status": result.status}
             finally:
                 await client.close()
-        if name not in {"hot", "topic", "study"}:
+        if name not in {"hot", "topic", "study", "find_topics"}:
             raise ValueError("未知运营动作")
         if name in {"hot", "topic"}:
             return await self.discovery.get(body)
         client = self.client()
         try:
+            if name == "find_topics":
+                query = body.get("query", "")
+                if not isinstance(query, str) or not query.strip() or len(query) > 100:
+                    raise ValueError("请输入100字以内的分区关键词")
+                return {"ok": True, "items": (await client.search_topics(query.strip()))[:20]}
             with Store(Path(self.cfg.db_path)) as store:
                 result = await StudyRunner(
                     client, store, notes_dir=self.root / "notes/study", count=2

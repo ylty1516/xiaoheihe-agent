@@ -59,7 +59,14 @@ def own_posts():
         ),
     ]
     return [
-        {"link_id": link, "title": title, "markdown": text, "brief": {}, "published_at": i + 1}
+        {
+            "link_id": link,
+            "title": title,
+            "markdown": text,
+            "brief": {},
+            "published_at": i + 1,
+            "subject": "games",
+        }
         for i, (link, title, text) in enumerate(excerpts)
     ]
 
@@ -196,7 +203,9 @@ async def test_writer_sees_published_body_habits_and_returns_review_without_savi
 
     monkeypatch.setattr(module, "OpenAICompatClient", Client)
     writer = Writer(tmp_path, replace(load_config(), llm_api_key="fake-only"))
-    result = await writer.generate({"mode": "write", "material": "机制条件的测试材料"})
+    result = await writer.generate(
+        {"mode": "write", "subject": "games", "material": "机制条件的测试材料"}
+    )
     assert own_posts[2]["markdown"].split("\n\n")[0] in seen["prompt"]
     assert result["warnings"] and result["diversity"]["history_count"] == 3
     assert not list((tmp_path / ".data").glob("post-*.md"))

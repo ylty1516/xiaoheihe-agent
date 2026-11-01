@@ -17,10 +17,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import aiohttp
+
 from xhh_agent.automation.slots import DEFAULT_LEDGER, record_post, slot_state
 from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.stats import check_post, load_profile, summarize
+from xhh_agent.content.writing import GENERAL_TOPIC, load_settings
+from xhh_agent.content.topics import pick_topic
 from xhh_agent.content.editorial import load_brief, load_history, record_publication, review
 from xhh_agent.content.style import compare_styles
 from .editorial import draft_path, read_metadata
@@ -31,7 +35,7 @@ from xhh_agent.protocol.session import SessionStore
 
 #: 游戏帖固定要挂的两个分区里的那个公共区
 DEFAULT_TOPIC_IDS = ("1",)
-DEFAULT_TOPIC_NAME = "影之刃零"
+DEFAULT_TOPIC_NAME = GENERAL_TOPIC
 #: 标题上限按 platform 来，前端也用这个数
 MAX_TITLE = 100
 
@@ -102,6 +106,7 @@ def preflight(root: Path, file_name: str, title: str) -> dict:
     stats = summarize(markdown)
     try:
         rules = load_profile(path)
+        writing = load_settings(path)
         problems, notes = check_post(markdown, profile=rules.id)
         editorial = review(root, markdown, load_brief(path), brief_advice=rules.id == "article")
     except ValueError as exc:
@@ -127,6 +132,7 @@ def preflight(root: Path, file_name: str, title: str) -> dict:
         "title": title,
         "stats": stats,
         "profile": {"id": rules.id, "name": rules.name},
+        "writing": {"subject": writing["subject"]["id"], "genre": writing["genre"]["id"]},
         "blockers": blockers,
         "warnings": warnings,
         "style": style,
@@ -141,14 +147,17 @@ def preflight(root: Path, file_name: str, title: str) -> dict:
     }
 
 
-async def _resolve_topic_ids(client: ProtocolClient, names: list[str]) -> list[str]:
-    ids = list(DEFAULT_TOPIC_IDS)
+async def _resolve_topic_ids(
+    client: ProtocolClient, names: list[str], *, include_pc=True
+) -> list[str]:
+    ids = list(DEFAULT_TOPIC_IDS) if include_pc else []
     for name in names:
+        if name.isdigit():
+            if name not in ids:
+                ids.append(name)
+            continue
         candidates = await client.search_topics(name)
-        exact = [c for c in candidates if c["name"] == name]
-        picked = (exact or candidates or [None])[0]
-        if not picked:
-            raise ValueError(f"找不到分区「{name}」")
+        picked = pick_topic(name, candidates)
         topic_id = str(picked["topic_id"])
         if topic_id not in ids:
             ids.append(topic_id)
@@ -184,6 +193,7 @@ async def publish(
     path = _data_dir(root) / check["file"]
     markdown = path.read_text(encoding="utf-8")
     brief = load_brief(path)
+    writing = load_settings(path)
     try:
         html = markdown_to_heybox_html(publication_markdown(root, markdown))
     except (OSError, ValueError) as exc:
@@ -194,9 +204,18 @@ async def publish(
     db_path = Path(cfg.db_path)
     if not db_path.is_absolute():
         db_path = root / db_path
-    client = ProtocolClient(SessionStore(db_path.parent / "session.json").load(), cfg)
     try:
-        topic_ids = await _resolve_topic_ids(client, topics or [DEFAULT_TOPIC_NAME])
+        client = ProtocolClient(SessionStore(db_path.parent / "session.json").load(), cfg)
+    except LoginExpired as exc:
+        return {"ok": False, "title": "请先登录账号", "lines": [str(exc)]}
+    submitted = False
+    try:
+        topic_ids = await _resolve_topic_ids(
+            client,
+            topics or [writing["subject"]["topic"]],
+            include_pc=writing["subject"]["pc"] if writing["explicit"] else True,
+        )
+        submitted = True
         result = await client.submit_post(
             title=title.strip(),
             content=html,
@@ -206,6 +225,16 @@ async def publish(
         )
     except (LoginExpired, XhhError, ValueError) as exc:
         return {"ok": False, "title": "发不出去", "lines": [str(exc)]}
+    except (aiohttp.ClientError, OSError, TimeoutError):
+        return {
+            "ok": False,
+            "title": "提交结果未确认" if submitted else "分区查询未完成",
+            "lines": [
+                "网络请求未完成，请先核对远端结果，勿重复发布"
+                if submitted
+                else "分区查询未完成，尚未提交正文；稿件已保留"
+            ],
+        }
     finally:
         await client.close()
 
@@ -216,7 +245,13 @@ async def publish(
     try:
         record_post(result.link_id, path=root / DEFAULT_LEDGER)
         record_publication(
-            root, link_id=result.link_id, title=title.strip(), markdown=markdown, brief=brief
+            root,
+            link_id=result.link_id,
+            title=title.strip(),
+            markdown=markdown,
+            brief=brief,
+            writing_subject=writing["subject"]["id"] if writing["explicit"] else None,
+            writing_genre=writing["genre"]["id"] if writing["genre_explicit"] else None,
         )
     except (OSError, ValueError) as exc:
         # The remote side already succeeded. Never invite a duplicate retry.

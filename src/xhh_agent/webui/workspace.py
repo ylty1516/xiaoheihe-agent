@@ -14,6 +14,7 @@ from aiohttp import web
 from xhh_agent.automation.generator import GenerationError
 from xhh_agent.content.diversity import audit
 from xhh_agent.content.editorial import load_history, save_writing_card
+from xhh_agent.content.writing import options
 from xhh_agent.protocol.errors import XhhError
 
 from .editorial import archived_drafts, draft_path, read_draft
@@ -54,6 +55,10 @@ def install_workspace_routes(app, root, cfg):
                 )
 
         return wrapped
+
+    @route
+    async def writing_options(_):
+        return web.json_response({"ok": True, **options()})
 
     @route
     async def library(_):
@@ -177,6 +182,7 @@ def install_workspace_routes(app, root, cfg):
         return web.json_response({"ok": True, "card": card})
 
     app.router.add_get("/api/library", library)
+    app.router.add_get("/api/writing-options", writing_options)
     app.router.add_post("/api/preview", preview)
     app.router.add_post("/api/images", upload)
     app.router.add_get("/api/media/{name}", image)

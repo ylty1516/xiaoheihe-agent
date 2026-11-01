@@ -30,6 +30,7 @@ hot 默认请求刷新，可用 `--no-refresh` 允许上游缓存；topic-posts 
 ```powershell
 xhh draft --md 稿子.md --title "标题" --html-out .data/preview.html
 xhh draft --md 短帖.md --title "标题" --profile short
+xhh draft --md 工具教程.md --title "工具教程" --subject software --profile flexible
 ```
 
 不完整稿件可先存草稿；正式发布才按所选规格拦截不合格内容。WebUI 草稿的规格保存到
@@ -41,11 +42,15 @@ py scripts/check_post.py 短帖.md --profile short
 py scripts/check_post.py 无图稿.md --profile flexible
 xhh publish --md 稿子.md --title "标题" --topic "对应话题" --profile article --yes
 xhh publish --md 短帖.md --title "标题" --profile short --yes
+xhh publish --md AI清单.md --title "用途与边界" --subject ai --profile flexible --topic "实际分区名" --yes
 ```
 
 `article` 沿用至少 1000 字、3 张图的长文偏好；`short` 不设长文门槛和必配图，超过 800 字仅提醒；
 `flexible` 不设目标篇幅和配图数。后两者的表情与口头禅密度仅提醒，空内容仍不能发布。
 `--allow-short` 保留兼容，优先选匹配用途的规格。
+subject 可选 auto、games、hardware、software、ai，省略时读取草稿设置。
+新稿按本次题材处理；非游戏领域不自动附加 PC 游戏区，未设置领域的旧稿保持原有路由。
+面板“题材与写法”支持十二种写法及自由组织，详见项目 `docs/writing-range.md`。
 
 `publish` 会公开，先核对授权。`--tag` 接真实话题 ID，`--topic` 可按名称解析，不猜 ID。
 CLI 当前以 article 富文本格式提交，包括短帖。**内容规格 short 不代表平台 dynamic 模式**。

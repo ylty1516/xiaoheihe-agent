@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 ROUTES = {
     "decision_path": {
         "name": "按条件走到下一步",
-        "types": ("troubleshooting", "guide"),
+        "types": ("troubleshooting", "guide", "tutorial"),
         "gain": "让遇到具体状况的读者知道下一步做什么",
         "sections": ["先辨认自己的条件", "按条件选择动作及核对依据", "无效时停在哪里"],
         "needs": "可核对的操作条件；没有实测就写验证办法，不写验证成功",
@@ -25,7 +25,7 @@ ROUTES = {
     },
     "state_walkthrough": {
         "name": "沿一个场景还原变化",
-        "types": ("mechanism", "troubleshooting"),
+        "types": ("mechanism", "troubleshooting", "tutorial"),
         "gain": "把抽象规则落到一个可追踪的过程",
         "sections": [
             "交代初始条件",
@@ -50,7 +50,7 @@ ROUTES = {
     },
     "conditional_comparison": {
         "name": "在同一条件下比较",
-        "types": ("guide", "debate", "update"),
+        "types": ("guide", "debate", "update", "roundup", "review"),
         "gain": "解释不同选择或结论适用于谁",
         "sections": ["固定比较前提", "逐项对照证据", "各自付出什么代价", "哪些条件会改变选择"],
         "needs": "可比对象和共同维度；没有同条件资料不得给出性能排名",
@@ -60,7 +60,7 @@ ROUTES = {
     },
     "change_trace": {
         "name": "追踪一项变化",
-        "types": ("update", "investigation"),
+        "types": ("update", "investigation", "news"),
         "gain": "分清已经改变、声称改变和尚未验证的部分",
         "sections": ["变化前的具体问题", "按时间核对记录", "对当前行动的影响与未知"],
         "needs": "带日期或版本的前后资料；只有更新说明时不能声称实测改善",
@@ -70,13 +70,43 @@ ROUTES = {
     },
     "evidence_boundary": {
         "name": "把结论的边界说清楚",
-        "types": ("investigation", "debate", "mechanism", "guide"),
+        "types": ("investigation", "debate", "mechanism", "guide", "essay", "review"),
         "gain": "回答现有材料究竟够不够支持一个判断",
         "sections": ["先给能确认的窄结论及依据", "解释哪些缺口阻止结论继续扩大"],
         "needs": "至少一条有出处的具体事实；结论必须收窄到它能支持的范围",
         "entry": "用带条件的答案开门见山",
         "ending": "写清补到什么证据才会改变判断，不强行升华或站队",
         "images": "直接支撑结论的材料、条件或缺口，不让图片冒充验证",
+    },
+    "chronicle": {
+        "name": "沿事件或场景展开",
+        "types": ("news", "narrative", "review"),
+        "gain": "看清变化或观察如何发生，而不是逐段讲抽象规则",
+        "sections": ["具体时间或场景", "沿材料推进事件与观察", "落到变化或留下的问题"],
+        "needs": "可追溯事件、原文或用户提供的真实记录；不补想象的现场、对话和个人经历",
+        "entry": "进入有材料依据的具体时刻，不先概括整篇",
+        "ending": "停在事件后果或观察本身，不强行总结成机制和结论",
+        "images": "对应时间或场景的材料图；没有图也可清楚叙述，不制造现场证据",
+    },
+    "curated_collection": {
+        "name": "按用途组织一组合集",
+        "types": ("roundup", "guide", "news"),
+        "gain": "让读者按需求找到各条目的不同用途",
+        "sections": ["说明收录范围与筛选依据", "各条目交代独有信息与条件", "按场景整理取舍"],
+        "needs": "逐条可核对的材料；可少列几项，不能为凑数量虚构功能、排名或推荐理由",
+        "entry": "给出这份合集帮助解决的需求，而非统一总评",
+        "ending": "留给读者清楚的使用路径，不必给每项打分或选唯一赢家",
+        "images": "与具体条目有关的界面或出处，不用无关海报填满条目",
+    },
+    "close_reading": {
+        "name": "从具体观察写评析",
+        "types": ("review", "essay", "narrative"),
+        "gain": "把作品或产品的观察与解释联系起来，让读者判断是否认同",
+        "sections": ["一个具体片段或观察", "以材料展开解释", "交代判断与局限"],
+        "needs": "作品原文、具体片段、文档或用户真实体验；说明哪些是事实、哪些是解读，不冒充测评",
+        "entry": "从值得讨论的细节进入，不默认以好坏总评开头",
+        "ending": "收在有依据的判断、余味或反问，按作品目的决定",
+        "images": "说明观察的画面、摘录或界面，遵守出处和使用条件",
     },
 }
 

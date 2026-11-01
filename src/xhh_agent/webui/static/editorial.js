@@ -4,7 +4,8 @@
   let current = null, revision = null, brief = null, notes = '', dirty = false, serial = 0;
   let saveTimer, saveChain = Promise.resolve(), conflict = false, library = {drafts:[],archived:[],published:[]};
   let libraryTab = 'drafts', previewing = false, report = null, model = {}, aiMode = 'outline', generation = null, aiBusy = false;
-  let activeNote = null, contentProfile = 'article';
+  let activeNote = null, contentProfile = 'article', currentSubject='auto', currentGenre='auto', subjectExplicit=false, lastTopic='盒友杂谈';
+  let writingOptions={subjects:[{id:'auto',name:'按本次要求',topic:'盒友杂谈'}],genres:[{id:'auto',name:'按内容组织'}],default_topic:'盒友杂谈'};
   let discoveryQuery='', discoveryTimer, discoverySeq=0, discoveryLoaded=false, operationPane='discover', discoveryFailures=0, displayedDiscovery=null;
   let selectedRange = null, replyRow = null, loginTimer = null, screen = 'writing', topicPurpose='search';
   const labels = {writing:'把精力留给内容。',library:'每一篇，都有着落。',workbench:'从社区获得下一篇灵感。',logs:'运行状态，一目了然。'};
@@ -43,7 +44,7 @@
       $('saveState').textContent='保存中…';
       try {
         const data=await api('/api/editorial',{action:'save',file,revision,brief,
-          markdown:$('articleBody').value,metadata:{title:$('titleInput').value,topic:$('topicInput').value,notes,profile:contentProfile}});
+          markdown:$('articleBody').value,metadata:{title:$('titleInput').value,topic:$('topicInput').value==='__custom'?lastTopic:$('topicInput').value,notes,profile:contentProfile,genre:currentGenre,...(subjectExplicit?{subject:currentSubject}:{})}});
         if(current===file) {revision=data.revision; if(snapshot===serial){dirty=false;$('btnSaveNow').hidden=true;} $('saveState').textContent=dirty?'待保存…':'已自动保存';}
         await loadLibrary();
       } catch(error) {if(error.message.includes('其他窗口'))conflict=true; $('saveState').textContent='保存失败，内容仍在本页'; throw error;}
@@ -53,12 +54,27 @@
   function chooseTopic(value) {
     const select=$('topicInput');
     if(![...select.options].some(x=>x.value===value)) select.add(new Option(value,value),select.options.length-1);
-    select.value=value;
+    select.value=value;lastTopic=value;
+  }
+  function updateWritingScope() {
+    $('writingSubject').value=currentSubject;$('publishSubject').value=currentSubject;$('writingGenre').value=currentGenre;
+    const scope=writingOptions.subjects.find(s=>s.id===currentSubject)?.name||'按本次要求',form=writingOptions.genres.find(g=>g.id===currentGenre)?.name||'按内容组织';
+    $('writingScopeSummary').textContent='题材与写法 · '+scope+' · '+form;
+  }
+  function chooseSubject(value,{explicit=false,suggest=false}={}) {
+    const old=writingOptions.subjects.find(s=>s.id===currentSubject),selected=writingOptions.subjects.find(s=>s.id===value);
+    const useSuggestion=suggest&&(lastTopic===old?.topic||!subjectExplicit||lastTopic===writingOptions.default_topic);
+    currentSubject=value;if(explicit)subjectExplicit=true;if(useSuggestion&&selected)chooseTopic(selected.topic);updateWritingScope();
+  }
+  async function loadWritingOptions() {
+    writingOptions=await api('/api/writing-options');
+    for(const id of ['writingSubject','publishSubject']) {$(id).replaceChildren();for(const item of writingOptions.subjects)$(id).add(new Option(item.name,item.id));}
+    $('writingGenre').replaceChildren();for(const item of writingOptions.genres)$('writingGenre').add(new Option(item.name,item.id));updateWritingScope();
   }
   function chooseProfile(value) {contentProfile=value;$('aiProfile').value=value;$('publishProfile').value=value;}
   function setDocument(data) {
     current=data.file; revision=data.revision; brief=data.has_brief?data.brief:null; notes=data.metadata?.notes||''; dirty=false; conflict=false; serial++;
-    $('titleInput').value=data.title||''; $('articleBody').value=data.markdown||''; chooseTopic(data.metadata?.topic||'影之刃零'); chooseProfile(data.metadata?.profile||'article');
+    $('titleInput').value=data.title||''; $('articleBody').value=data.markdown||''; subjectExplicit=Object.prototype.hasOwnProperty.call(data.metadata||{},'subject');currentSubject=data.metadata?.subject||'auto';currentGenre=data.metadata?.genre||'auto';chooseTopic(data.metadata?.topic||writingOptions.default_topic);chooseProfile(data.metadata?.profile||'article');updateWritingScope();
     $('saveState').textContent='所有修改已保存'; $('aiMaterial').value=notes; report=null;
     ['titleInput','articleBody','btnDuplicate','btnExport','btnArchive','btnCheck'].forEach(id=>$(id).disabled=false);
     $('btnSaveNow').hidden=true;$('moreActions').open=false;count(); renderRecent();
@@ -143,7 +159,7 @@
     if(mode==='rewrite'&&!selection.trim())throw new Error('先关闭窗口，在正文选中一段，再打开 AI 助手');
     notes=$('aiMaterial').value;mark();await save();
     aiBusy=true;$('btnGenerate').disabled=true;$('btnApplyAI').hidden=true;$('aiResult').hidden=true;$('aiNote').textContent='';$('aiReview').hidden=true;$('aiStatus').textContent='正在生成，原稿保持原样…';
-    try {const result=await api('/api/generate',{mode,title,profile:contentProfile,markdown:body,selected:selection,material:notes+(brief?'\n已有选题卡：'+JSON.stringify(brief):'')});generation={file,body,title,mode,start:selectedRange?.start,end:selectedRange?.end,text:result.text};$('aiResult').textContent=result.text;$('aiResult').hidden=false;$('btnApplyAI').hidden=false;$('btnApplyAI').textContent=mode==='outline'?'插入提纲':mode==='rewrite'?'替换选中段落':'采用正文';if(mode==='outline') {
+    try {const result=await api('/api/generate',{mode,title,profile:contentProfile,subject:currentSubject,genre:currentGenre,markdown:body,selected:selection,material:notes+(brief?'\n已有选题卡：'+JSON.stringify(brief):'')});generation={file,body,title,mode,start:selectedRange?.start,end:selectedRange?.end,text:result.text};$('aiResult').textContent=result.text;$('aiResult').hidden=false;$('btnApplyAI').hidden=false;$('btnApplyAI').textContent=mode==='outline'?'插入提纲':mode==='rewrite'?'替换选中段落':'采用正文';if(mode==='outline') {
       const choices=result.text.split(/(?=^##\s*方案\s*\d+\s*[：:])/m).map(s=>s.trim()).filter(s=>/^##\s*方案\s*\d+\s*[：:]/.test(s));
       if(choices.length>0) {$('aiResult').replaceChildren();$('btnApplyAI').hidden=true;for(const choice of choices){const section=document.createElement('section');section.className='outline-pick';const text=document.createElement('div');text.textContent=choice;section.append(text,button('采用这份提纲',async()=>{generation.text=choice;await applyAI();},'secondary'));$('aiResult').append(section);}}
     }
@@ -168,7 +184,7 @@
     return data.source_board==='games'?item.text:'PC游戏';
   }
   async function discoveryDraft(item,data) {
-    const title=item.title||item.text;await newDraft();$('titleInput').value=title.slice(0,100);chooseTopic(preferredDiscoveryTopic(item,data));
+    const title=item.title||item.text;await newDraft();$('titleInput').value=title.slice(0,100);const foundTopic=preferredDiscoveryTopic(item,data);if(data.source_board==='games'||item.topics?.some(t=>t.name===foundTopic&&t.game_type))chooseSubject('games',{explicit:true});chooseTopic(foundTopic);
     notes='选题线索：'+title+'\n数据来源：'+data.source+'\n采集时间：'+new Date(data.fetched_at*1000).toISOString()+'\n采集时间不等于话题发生时间；榜单和社区摘要仅为线索，须核对原始资料。'+(data.stale?'\n注意：此次更新失败，保留的是旧采集结果。':'')+(data.query?'\n搜索词：'+data.query+'；范围：'+(data.time_range||'不限')+'；排序：'+data.sort:'')+(item.published_at?'\n帖子发布时间：'+new Date(item.published_at*1000).toISOString():'')+(item.topics?.length?'\n原帖分区：'+item.topics.map(t=>t.name).join('、'):'')+(item.description?'\n社区摘要（须核实）：'+item.description:'')+(item.link_id?'\n来源：https://www.xiaoheihe.cn/app/bbs/link/'+item.link_id:'');
     $('aiMaterial').value=notes;mark();await save();toast('选题与来源已带入新稿，请核对资料和分区');
   }
@@ -225,11 +241,22 @@
   document.querySelectorAll('[data-ai-mode]').forEach(node=>node.onclick=()=>setAIMode(node.dataset.aiMode));
   document.querySelectorAll('[data-operation]').forEach(node=>node.onclick=run(()=>operation(node.dataset.operation)));
   document.querySelectorAll('[data-operation-view]').forEach(node=>node.onclick=()=>{document.querySelectorAll('[data-operation-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===node)));operationPane=node.dataset.operationView;document.querySelectorAll('[data-operation-pane]').forEach(p=>p.hidden=p.dataset.operationPane!==operationPane);clearTimeout(discoveryTimer);if(operationPane==='discover')discover(discoveryQuery,{automatic:true});});
-  function topicDialog(purpose) {topicPurpose=purpose;$('topicDialogTitle').textContent=purpose==='custom'?'选择发布分区':'搜索社区话题';$('btnConfirmTopic').textContent=purpose==='custom'?'采用分区':'搜索';$('topicQuery').value='';dialog('topicDialog');$('topicQuery').focus();}
+  function topicDialog(purpose) {topicPurpose=purpose;$('topicMatches').replaceChildren();$('topicDialogTitle').textContent=purpose==='custom'?'选择发布分区':'搜索社区话题';$('btnConfirmTopic').textContent=purpose==='custom'?'查找分区':'搜索';$('topicQuery').value='';dialog('topicDialog');$('topicQuery').focus();}
   for(const id of ['aiProfile','publishProfile'])$(id).onchange=run(async()=>{chooseProfile($(id).value);mark();await save();if($('publishDialog').open)await check();});
-  $('topicInput').onchange=()=>{if($('topicInput').value==='__custom'){topicDialog('custom');return;}mark();if($('publishDialog').open)check().catch(error=>toast(error.message,true));};
-  $('btnConfirmTopic').onclick=run(async()=>{const query=$('topicQuery').value.trim();if(!query)throw new Error('请填写名称');$('topicDialog').close();if(topicPurpose==='custom'){chooseTopic(query);mark();if($('publishDialog').open)await check();}else await discover(query);});
-  $('topicDialog').addEventListener('close',()=>{if($('topicInput').value==='__custom')chooseTopic('影之刃零');});
+  $('topicInput').onchange=()=>{if($('topicInput').value==='__custom'){topicDialog('custom');return;}lastTopic=$('topicInput').value;mark();if($('publishDialog').open)check().catch(error=>toast(error.message,true));};
+  async function applyTopic(name) {chooseTopic(name);$('topicDialog').close();mark();await save();if($('publishDialog').open)await check();}
+  $('btnConfirmTopic').onclick=run(async()=>{
+    const query=$('topicQuery').value.trim();if(!query)throw new Error('请填写名称');
+    if(topicPurpose!=='custom'){$('topicDialog').close();await discover(query);return;}
+    const data=await api('/api/operate',{action:'find_topics',query});const items=data.items||[];
+    const key=value=>value.normalize('NFKC').replace(/[^\p{L}\p{N}]/gu,'').toLowerCase();const exact=items.find(item=>key(item.name)===key(query));
+    if(exact||items.length===1){await applyTopic((exact||items[0]).name);return;}
+    $('topicMatches').replaceChildren();for(const item of items)$('topicMatches').append(button(item.name,()=>applyTopic(item.name),'secondary'));
+    if(!items.length)empty($('topicMatches'),'没有找到分区，请换个关键词。');
+  });
+  $('topicDialog').addEventListener('close',()=>{if($('topicInput').value==='__custom')chooseTopic(lastTopic);});
+  for(const id of ['writingSubject','publishSubject'])$(id).onchange=run(async()=>{chooseSubject($(id).value,{explicit:true,suggest:true});mark();await save();if($('publishDialog').open)await check();});
+  $('writingGenre').onchange=()=>{currentGenre=$('writingGenre').value;updateWritingScope();mark();};
   $('topicQuery').addEventListener('keydown',event=>{if(event.key==='Enter')$('btnConfirmTopic').click();});
   $('btnPreview').onclick=run(togglePreview);$('btnCheck').onclick=run(check);$('warnOk').onchange=updatePublishButton;$('btnPublish').onclick=run(publish);
   $('btnAI').onclick=run(openAI);$('btnGenerate').onclick=run(generate);$('btnApplyAI').onclick=run(applyAI);
@@ -241,6 +268,6 @@
   $('loginButton').onclick=run(login);$('btnRenewQR').onclick=run(login);$('loginDialog').addEventListener('close',()=>clearTimeout(loginTimer));$('btnRefreshState').onclick=run(refreshState);
   document.addEventListener('visibilitychange',()=>{clearTimeout(discoveryTimer);if(discoveryActive()&&$('autoDiscover').checked)discover(discoveryQuery,{automatic:true});});window.addEventListener('hashchange',showScreen);window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().catch(error=>toast(error.message,true));}if((event.ctrlKey||event.metaKey)&&event.key==='Enter'&&current&&!document.querySelector('dialog[open]')){event.preventDefault();check().catch(error=>toast(error.message,true));}});
-  showScreen();Promise.all([loadLibrary(),loadModel(),refreshState()]).then(async()=>{if(library.drafts[0])await openDraft(library.drafts[0].name,false);}).catch(error=>toast(error.message,true));
+  showScreen();Promise.all([loadWritingOptions(),loadLibrary(),loadModel(),refreshState()]).then(async()=>{if(library.drafts[0])await openDraft(library.drafts[0].name,false);}).catch(error=>toast(error.message,true));
   setInterval(()=>{if(!document.hidden)refreshState();},15000);
 })();

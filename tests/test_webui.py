@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import types
 from datetime import datetime
+import pytest
 
 from xhh_agent.automation.slots import EXIT_SKIP, SlotState, record_post
 from xhh_agent.protocol.models import PostResult
@@ -19,6 +20,17 @@ from xhh_agent.webui.publishing import list_drafts, preflight
 from xhh_agent.webui.state import build_state
 
 DAY = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+
+
+@pytest.fixture(autouse=True)
+def stable_publication_clock(monkeypatch):
+    real = publishing.slot_state
+    monkeypatch.setattr(
+        publishing,
+        "slot_state",
+        lambda path=None, now=None: real(path=path, now=DAY.timestamp() if now is None else now),
+    )
+
 
 BODY = "影之刃零这把双钩的防反窗口比想象中短，弹反成功之后能接两段。" * 60
 IMAGES = "\n![图一](.data/a.gif)\n![图二](https://x/2.jpg)\n![图三](https://x/3.jpg)\n"
@@ -220,9 +232,7 @@ async def test_publish_hits_both_topics_and_records_ledger(tmp_path, monkeypatch
 
     from xhh_agent.automation.slots import load_ledger
 
-    assert [p["link_id"] for p in load_ledger(root / ".data" / "post-ledger.json")] == [
-        "195000001"
-    ]
+    assert [p["link_id"] for p in load_ledger(root / ".data" / "post-ledger.json")] == ["195000001"]
 
 
 async def test_publish_refuses_when_blockers_exist(tmp_path, monkeypatch):

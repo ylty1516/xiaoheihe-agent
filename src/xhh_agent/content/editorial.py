@@ -17,19 +17,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .diversity import ROUTES, audit, reused_images
+from .writing import GENRES as STRUCTURES
+from .writing import subject, genre
 
 HISTORY = Path(".data/editorial-history.json")
-STRUCTURES = {
-    "troubleshooting": (
-        "排障攻略",
-        ["具体症状与适用版本", "判断分支与操作", "验证结果", "无效时的下一步"],
-    ),
-    "mechanism": ("机制拆解", ["一个常见误解", "规则及来源", "具体场景与反例", "适用边界"]),
-    "debate": ("争议分析", ["双方具体主张", "分别核对证据", "分歧来自哪里", "有条件的判断"]),
-    "update": ("更新解读", ["改前与改后", "影响哪些人", "已验证的变化", "尚待验证之处"]),
-    "guide": ("选择指南", ["使用场景", "比较维度与证据", "各自取舍", "按场景给建议"]),
-    "investigation": ("资料考据", ["需要澄清的疑问", "来源链", "矛盾与缺口", "能确认的结论"]),
-}
 BRIEF_FIELDS = ("reader", "question", "conclusion", "new_information")
 
 
@@ -138,11 +129,17 @@ def record_publication(
     markdown: str,
     brief: dict | None = None,
     published_at: float | None = None,
+    writing_subject: str | None = None,
+    writing_genre: str | None = None,
 ) -> None:
     if not link_id:
         raise ValueError("没有 link_id 不能登记已发布内容")
     history = load_history(root)
     previous = next((x for x in history if x["link_id"] == str(link_id)), {})
+    scope = subject(
+        writing_subject if writing_subject is not None else previous.get("subject", "auto")
+    )
+    form = genre(writing_genre if writing_genre is not None else previous.get("genre", "auto"))
     stamp = published_at if published_at is not None else previous.get("published_at", time.time())
     if (
         isinstance(stamp, bool)
@@ -160,6 +157,8 @@ def record_publication(
             "markdown": markdown,
             "brief": brief or {},
             "published_at": stamp,
+            "subject": scope["id"],
+            "genre": form["id"],
         },
     )
     write_json(root / HISTORY, entries)
@@ -295,6 +294,12 @@ def plan_options(brief: dict, history: list[dict]) -> list[dict]:
         "update": ("investigation", "guide", "mechanism"),
         "guide": ("mechanism", "investigation", "troubleshooting"),
         "investigation": ("mechanism", "debate", "update"),
+        "news": ("update", "investigation", "roundup"),
+        "tutorial": ("troubleshooting", "guide", "mechanism"),
+        "review": ("guide", "essay", "investigation"),
+        "roundup": ("guide", "news", "review"),
+        "narrative": ("review", "essay", "investigation"),
+        "essay": ("debate", "review", "investigation"),
     }[brief["structure"]]
     keys = [brief["structure"], *sorted(related, key=recent.count)[:2]]
     used = [x.get("brief", {}).get("route") for x in history[:5]]

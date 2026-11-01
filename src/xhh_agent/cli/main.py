@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import sys
 
+from xhh_agent.content.writing import SUBJECTS
+
 _STAGES = {
     "login": "P0 · 扫码登录",
     "whoami": "P0 · 会话校验",
@@ -73,6 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
             choices=("article", "short", "flexible"),
             default=None,
             help="内容规格：长文 / 短帖 / 按需；默认读取草稿设置，否则沿用长文偏好",
+        )
+        parser_ref.add_argument(
+            "--subject",
+            choices=SUBJECTS,
+            default=None,
+            help="创作领域，读取草稿选择；非游戏领域不再自动附加 PC 游戏区",
         )
         parser_ref.add_argument(
             "--allow-short",

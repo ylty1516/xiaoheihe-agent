@@ -14,6 +14,8 @@ import re
 import sys
 from pathlib import Path
 
+import aiohttp
+
 from xhh_agent.cli.cmd_login import session_path
 from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
@@ -21,6 +23,8 @@ from xhh_agent.content.plain import markdown_to_plain
 from xhh_agent.content.inline_images import replace_inline_images
 from xhh_agent.content.stats import check_post, load_profile, summarize
 from xhh_agent.content.editorial import load_brief, record_publication, review
+from xhh_agent.content.topics import pick_topic
+from xhh_agent.content.writing import load_settings
 from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import LoginExpired, XhhError
@@ -81,10 +85,8 @@ async def _resolve_topics(
             raise ValueError(
                 f"找不到分区「{name}」。先在 App 里确认这个分区叫什么，或用 --tag 直接指定 ID。"
             )
-        # 同名优先，否则取搜索结果第一个（服务端已按相关度排序）
-        exact = [c for c in candidates if c["name"] == name]
-        chosen = (exact or candidates)[0]
-        resolved[name] = chosen["topic_id"]
+        chosen = pick_topic(name, candidates)
+        resolved[name] = str(chosen["topic_id"])
 
     ordered: list[str] = []
     for topic_id in ids + list(resolved.values()):
@@ -127,6 +129,11 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         return EXIT_USAGE
 
     try:
+        writing = load_settings(Path(md_path or html_path), getattr(args, "subject", None))
+        if writing["explicit"]:
+            base_ids = tag_ids or ([DEFAULT_TOPIC_ID] if writing["subject"]["pc"] else [])
+            if not base_ids and not topic_names:
+                topic_names = [writing["subject"]["topic"]]
         if html_path:
             source_text = _read_source(html_path)
             print(f"正文：直接读取文件（{len(source_text)} 字符）")
@@ -143,7 +150,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         else:
             body_text = source_text
             html = source_text
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         print(f"参数错误：{exc}", file=sys.stderr)
         return EXIT_USAGE
 
@@ -224,6 +231,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         return EXIT_LOGIN_EXPIRED
 
     client = ProtocolClient(session, cfg)
+    submitted = False
     try:
         try:
             topics, resolved = await _resolve_topics(client, base_ids, topic_names)
@@ -238,7 +246,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         print(f"分区：{', '.join(shown_parts)}")
         for name, topic_id in resolved.items():
             print(f"  「{name}」-> {topic_id}")
-        if len(topics) < 2:
+        if len(topics) < 2 and (not writing["explicit"] or writing["subject"]["pc"]):
             print(
                 '⚠ 只挂了一个分区。游戏帖建议再加游戏专属分区：--topic "游戏名"',
                 file=sys.stderr,
@@ -256,6 +264,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
             print("已中止，避免发出排版残缺的帖子。", file=sys.stderr)
             return EXIT_ERROR
 
+        submitted = True
         result = await client.submit_post(
             title=title,
             content=body_text,
@@ -279,6 +288,8 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
                         title=title,
                         markdown=markdown_text,
                         brief=brief,
+                        writing_subject=writing["subject"]["id"] if writing["explicit"] else None,
+                        writing_genre=writing["genre"]["id"] if writing["genre_explicit"] else None,
                     )
                 except (OSError, ValueError) as exc:
                     print(f"帖子已公开，勿重发；内容快照登记失败：{exc}", file=sys.stderr)
@@ -288,6 +299,14 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         return EXIT_LOGIN_EXPIRED
     except XhhError as exc:
         print(f"提交失败：{exc}", file=sys.stderr)
+        return EXIT_ERROR
+    except (aiohttp.ClientError, OSError, TimeoutError):
+        print(
+            "提交结果未确认，请核对远端，勿重复发布。"
+            if submitted
+            else "分区查询未完成，尚未提交正文；稿件已保留。",
+            file=sys.stderr,
+        )
         return EXIT_ERROR
     finally:
         await client.close()
