@@ -49,3 +49,5 @@ dialog { border:1px solid #415754; background:#152327; color:var(--text); border
 @media(max-width:700px) { .field input,.field textarea,.article-input { font-size:16px; } }
 
 .outline-pick { padding:0 0 18px; border-bottom:1px solid var(--line); margin-bottom:18px; }.outline-pick:last-child { margin-bottom:0; border-bottom:0; padding-bottom:0; }.outline-pick button { margin-top:14px; }
+
+.discover-toolbar { flex-wrap:wrap; }.discover-toolbar select { max-width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:#152327; }.discover-toolbar .checkbox-row { margin:0 0 0 auto; }#discoverStatus { line-height:1.7; }#discoverNote { line-height:1.8; margin-top:20px; }

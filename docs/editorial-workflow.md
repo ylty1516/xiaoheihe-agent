@@ -44,6 +44,9 @@ py scripts/editorial.py audit
 
 自由找选题时可运行 `xhh hot -n 5` 与 `xhh topic-posts 游戏名 -n 10`，数量按需要调整；
 已给定选题或资料时不强制重复找热点。
+实时讨论默认近 24 小时、最新排序；需要当前高互动样本时可加 `--sort comment_num`，
+需要回顾资料时显式改为 `--time-range 7d` 或更长。不要把旧高互动帖或采集时间当成新闻刚发生。
+面板的自动更新、三种榜单和时间过滤见 [发现选题](discovery.md)。
 运行：
 
 ```powershell

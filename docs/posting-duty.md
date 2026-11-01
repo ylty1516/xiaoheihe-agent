@@ -13,7 +13,8 @@
 
 1. 跑 `py -m xhh_agent.cli.main doctor`。失败就停止。
 2. 跑 `py scripts/post_slot.py check` 和 status。非 0 不发布，只学习或存本地草稿。
-3. 看 `hot -n 5`、`topic-posts "影之刃零" -n 10`；找到读者问题并查原始来源。
+3. 看 `hot -n 5`、`topic-posts "影之刃零" -n 10 --sort comment_num --time-range 1d`，
+   需要时补看最新发布；题材范围仍限本任务，不把旧周榜直接当成当前讨论。查原始来源后再判断是否值得写。
 4. 运行 `editorial.py audit`，读最近已发正文摘录和 `editorial.py library` 中适用的卡。
    不能只看标题；历史为空先核对旧文补录。没有新问题或新证据就不硬写。
 5. 新建 post-*.brief.json，填全选题卡，明确本篇不再展开的旧内容。

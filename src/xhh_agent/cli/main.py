@@ -114,19 +114,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_del.add_argument("--draft", action="store_true", help="这是草稿（走下架接口）")
     p_del.add_argument("--yes", action="store_true", help="确认删除")
 
-    p_hot = sub.add_parser("hot", help="看热搜榜（黑盒热议）")
+    p_hot = sub.add_parser("hot", help="刷新小黑盒热搜、热门游戏或社区热议")
     p_hot.add_argument("-n", "--limit", type=int, default=10, help="取前几条（默认 10）")
+    p_hot.add_argument("--board", choices=("all", "games", "discussions"), default="all")
+    p_hot.add_argument("--no-refresh", action="store_true", help="允许上游复用缓存；默认请求刷新")
+    p_hot.add_argument("--format", choices=("table", "json"), default="table")
 
-    p_tp = sub.add_parser("topic-posts", help="看话题下社区高互动帖在聊什么")
+    p_tp = sub.add_parser("topic-posts", help="搜索话题的最新或高互动讨论")
     p_tp.add_argument("query", help="话题关键词，如 GTA6")
     p_tp.add_argument("-n", "--limit", type=int, default=8)
     p_tp.add_argument(
         "--time-range",
         dest="time_range",
-        default="7d",
-        choices=["7d", "30d", "180d", "360d", ""],
-        help="时间范围，默认本周",
+        default="1d",
+        choices=["1d", "7d", "30d", "180d", "360d", ""],
+        help="默认近24小时，本地按发布时间过滤；空字符串不限时间",
     )
+    p_tp.add_argument(
+        "--sort",
+        choices=("create_date", "award_num", "comment_num", "default"),
+        default="create_date",
+    )
+    p_tp.add_argument("--format", choices=("table", "json"), default="table")
 
     p_study = sub.add_parser("study", help="逛帖学习：挑高质量帖子存素材（只读）")
     p_study.add_argument("-n", "--count", type=int, default=2, help="挑几篇（默认 2）")

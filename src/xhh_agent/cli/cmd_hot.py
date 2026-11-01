@@ -1,12 +1,11 @@
-"""xhh hot：看小黑盒热搜榜（「热搜榜」）。
-
-写帖前应该先跑这个喵。选题从里面挑，不要凭空想。
-"""
+"""刷新指定小黑盒榜单，保留来源与采集时间。"""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
+from datetime import datetime
 
 from xhh_agent.cli.cmd_login import session_path
 from xhh_agent.config import Config
@@ -19,7 +18,7 @@ EXIT_ERROR = 1
 EXIT_LOGIN_EXPIRED = 3
 
 
-async def _run(cfg: Config, limit: int) -> int:
+async def _run(cfg: Config, limit: int, *, board="all", refresh=True, output_format="table") -> int:
     try:
         session = SessionStore(session_path(cfg)).load()
     except LoginExpired as exc:
@@ -28,7 +27,7 @@ async def _run(cfg: Config, limit: int) -> int:
 
     client = ProtocolClient(session, cfg)
     try:
-        topics = await client.fetch_hot_topics(limit=limit)
+        data = await client.fetch_hot_board(limit=limit, board=board, refresh=refresh)
     except LoginExpired as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_LOGIN_EXPIRED
@@ -38,13 +37,28 @@ async def _run(cfg: Config, limit: int) -> int:
     finally:
         await client.close()
 
-    print(f"热搜榜（前 {len(topics)} 条）：\n")
+    if output_format == "json":
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return EXIT_OK
+    topics = data["items"]
+    stamp = datetime.fromtimestamp(data["fetched_at"]).strftime("%m-%d %H:%M:%S")
+    print(f"{data['source']}（{len(topics)} 条，采集于 {stamp}）：\n")
+    if data["fallback"]:
+        print("主榜不可用，当前为社区热议子榜，排名不能当成主榜。")
     for topic in topics:
         tag = f"  [{topic['right_tag']}]" if topic["right_tag"] else ""
         print(f"  {topic['index']}. {topic['text']}{tag}")
-    print("\n选题时优先挑**游戏相关**的，电竞和商业新闻不适合这个号。")
+    print("\n榜单为小黑盒平台数据，采集时间不代表话题发生时间。")
     return EXIT_OK
 
 
 def main(args: object, cfg: Config) -> int:
-    return asyncio.run(_run(cfg, int(getattr(args, "limit", 10) or 10)))
+    return asyncio.run(
+        _run(
+            cfg,
+            int(getattr(args, "limit", 10) or 10),
+            board=getattr(args, "board", "all"),
+            refresh=not getattr(args, "no_refresh", False),
+            output_format=getattr(args, "format", "table"),
+        )
+    )

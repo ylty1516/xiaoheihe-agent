@@ -1,8 +1,4 @@
-"""热搜榜（黑盒热议）。
-
-接口：/bbs/app/api/search/welcome_page/v2?force_refresh=false
-返回 result.Lists 是若干组，其中 head_text == "黑盒热议" 的那组就是热搜。
-"""
+"""平台热榜的来源、排序与分组回归。"""
 
 import pytest
 

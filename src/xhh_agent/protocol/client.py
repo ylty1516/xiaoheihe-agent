@@ -419,9 +419,7 @@ class ProtocolClient:
             )
         return self._http
 
-    async def _raw_request(
-        self, method: str, url: str, **kwargs: Any
-    ) -> RawResponse:
+    async def _raw_request(self, method: str, url: str, **kwargs: Any) -> RawResponse:
         """唯一真正发出 HTTP 的入口。测试替换这个方法。"""
         http = await self._get_http()
         async with http.request(method, url, **kwargs) as response:
@@ -473,8 +471,7 @@ class ProtocolClient:
         result = data.get("result")
         if not isinstance(result, dict) or "messages" not in result:
             raise SchemaChanged(
-                f"{MESSAGE_PATH} 响应缺少 result.messages——这是接口结构变更，"
-                "不能据此判定会话有效。"
+                f"{MESSAGE_PATH} 响应缺少 result.messages——这是接口结构变更，不能据此判定会话有效。"
             )
 
         return Account(heybox_id=self.heybox_id, username="", level=0)
@@ -530,121 +527,181 @@ class ProtocolClient:
         sort: str = "award_num",
         time_range: str = "7d",
     ) -> list[dict[str, Any]]:
-        """按话题搜帖子，默认按点赞排序、限本周。
+        """Search public discussion samples, respecting ordering and publication time.
 
-        这是**发帖前最重要的一步**：看社区里高赞帖在聊什么角度，
-        比自己搜新闻靠谱得多——自己搜的"最新消息"很容易过时喵。
-
-        ``sort``：default / create_date / award_num（最多点赞）/ comment_num
-        ``time_range``："" 不限 / 7d / 30d / 180d / 360d
+        The upstream does not reliably support 1d. Use its 7d range and locally
+        enforce 24 hours; for popularity, supplement the hot sample with latest
+        posts rather than silently presenting old popular posts as current.
         """
         keyword = str(query or "").strip()
         if not keyword:
             raise ValueError("搜索话题需要关键词")
+        if sort not in {"default", "create_date", "award_num", "comment_num"}:
+            raise ValueError("不支持的搜索排序")
+        if time_range not in {"1d", "7d", "30d", "180d", "360d", ""}:
+            raise ValueError("不支持的搜索时间范围")
+        cap = max(1, min(int(limit), 30))
+        now = time.time()
 
-        url = self.build_api_url(
-            GENERAL_SEARCH_PATH,
-            {
-                "q": keyword,
-                "search_type": "general",
-                "is_pull_down": "0",
-                "offset": "0",
-                "limit": str(max(1, min(limit, 30))),
-                "dw": "744",
-                "sort_filter": sort,
-                "time_range": time_range,
-            },
-        )
-        data = await self._request_json("GET", url)
-        result = data.get("result") if isinstance(data.get("result"), dict) else {}
-        items = result.get("items")
-        if not isinstance(items, list):
-            raise SchemaChanged(f"{GENERAL_SEARCH_PATH} 响应缺 items")
+        async def fetch(order):
+            url = self.build_api_url(
+                GENERAL_SEARCH_PATH,
+                {
+                    "q": keyword,
+                    "search_type": "general",
+                    "is_pull_down": "0",
+                    "offset": "0",
+                    "limit": str(30 if time_range == "1d" else cap),
+                    "dw": "744",
+                    "sort_filter": order,
+                    "time_range": "7d" if time_range == "1d" else time_range,
+                },
+            )
+            data = await self._request_json("GET", url)
+            result = data.get("result") if isinstance(data.get("result"), dict) else {}
+            items = result.get("items")
+            if not isinstance(items, list):
+                raise SchemaChanged(f"{GENERAL_SEARCH_PATH} 响应缺 items")
+            return items
 
-        posts: list[dict[str, Any]] = []
+        items = await fetch(sort)
+        if time_range == "1d" and sort in {"award_num", "comment_num", "default"}:
+            items += await fetch("create_date")
+        posts = []
+        seen = set()
+        days = {"1d": 1, "7d": 7, "30d": 30, "180d": 180, "360d": 360}
+        cutoff = now - days[time_range] * 86400 if time_range else None
         for item in items:
             if not isinstance(item, dict):
                 continue
             info = item.get("info") if isinstance(item.get("info"), dict) else {}
             link_id = str(info.get("linkid") or info.get("link_id") or "").strip()
             title = _strip_em(str(info.get("title") or "")).strip()
-            if not link_id or not title:
+            if not link_id or not title or link_id in seen:
                 continue
+            try:
+                stamp = float(info.get("create_at") or 0)
+                stamp = stamp / 1000 if stamp >= 1e12 else stamp
+                published_at = int(stamp) if 0 < stamp < 1e11 else None
+            except (TypeError, ValueError, OverflowError):
+                published_at = None
+            if (
+                cutoff is not None
+                and published_at is not None
+                and not cutoff <= published_at <= now + 300
+            ):
+                continue
+            if time_range == "1d" and published_at is None:
+                continue  # Cannot label an undated item as a current discussion.
+            seen.add(link_id)
+
+            def count(value):
+                try:
+                    return max(0, int(value or 0))
+                except (TypeError, ValueError, OverflowError):
+                    return 0
+
+            topics = info.get("topics") if isinstance(info.get("topics"), list) else []
             posts.append(
                 {
                     "link_id": link_id,
                     "title": title,
                     "description": _strip_em(str(info.get("description") or "")).strip(),
-                    "comment_num": int(info.get("comment_num") or 0),
-                    "up": int(info.get("up") or 0),
+                    "comment_num": count(info.get("comment_num")),
+                    "up": count(info.get("up")),
+                    "award_num": count(info.get("link_award_num")),
+                    "published_at": published_at,
                     "link_tag": info.get("link_tag"),
+                    "topics": [
+                        {
+                            "name": str(t.get("name") or ""),
+                            "topic_id": str(t.get("topic_id") or ""),
+                            "game_type": t.get("game_type"),
+                        }
+                        for t in topics
+                        if isinstance(t, dict) and t.get("name")
+                    ],
                 }
             )
-        # 服务端排序可能不生效，本地再按互动量兜一次
-        posts.sort(key=lambda p: (p["comment_num"], p["up"]), reverse=True)
-        return posts[: max(1, limit)]
+        if sort == "create_date":
+            posts.sort(key=lambda p: p["published_at"] or 0, reverse=True)
+        elif sort == "award_num":
+            posts.sort(key=lambda p: (p["award_num"] or p["up"], p["comment_num"]), reverse=True)
+        elif sort == "comment_num":
+            posts.sort(key=lambda p: (p["comment_num"], p["award_num"] or p["up"]), reverse=True)
+        return posts[:cap]
 
-    async def fetch_hot_topics(self, *, limit: int = 5) -> list[dict[str, Any]]:
-        """取热搜榜（「黑盒热议」组）的前 N 条。
-
-        接口返回 result.Lists 是若干组（热门游戏 / 黑盒热议 / 小程序…），
-        只取 head_text == "黑盒热议" 那一组。写帖前应该先看这个喵。
-        """
-        url = self.build_api_url(SEARCH_WELCOME_PATH, {"force_refresh": "false"})
-        data = await self._request_json("GET", url)
+    async def fetch_hot_board(
+        self,
+        *,
+        board: str = "all",
+        limit: int = 15,
+        refresh: bool = True,
+    ) -> dict[str, Any]:
+        """Read one upstream board, retaining provenance when the main board falls back."""
+        titles = {"all": "", "games": "热门游戏", "discussions": HOT_GROUP_TITLE}
+        if board not in titles:
+            raise ValueError("不支持的热榜类型")
+        cap = max(1, min(int(limit), 30))
+        data = await self._request_json(
+            "GET",
+            self.build_api_url(
+                SEARCH_WELCOME_PATH,
+                {"force_refresh": "true" if refresh else "false"},
+            ),
+        )
         result = data.get("result") if isinstance(data.get("result"), dict) else {}
         groups = result.get("Lists")
         if not isinstance(groups, list):
-            raise SchemaChanged(f"{SEARCH_WELCOME_PATH} 响应里找不到 Lists")
-
-        def _take(items: list) -> list[dict[str, Any]]:
-            picked: list[dict[str, Any]] = []
-            for index, item in enumerate(items[: max(1, limit)], start=1):
-                if not isinstance(item, dict):
+            raise SchemaChanged(f"{SEARCH_WELCOME_PATH} 响应缺少 Lists")
+        candidates = [board, "discussions"] if board == "all" else [board]
+        for source_board in candidates:
+            for group in groups:
+                if (
+                    not isinstance(group, dict)
+                    or str(group.get("head_text") or "").strip() != titles[source_board]
+                ):
                     continue
-                text = str(item.get("text") or "").strip()
-                if not text:
-                    continue
-                picked.append(
-                    {
-                        "index": index,
-                        "text": text,
-                        "right_tag": _tag_text(item.get("right_tag")),
+                picked, seen = [], set()
+                items = group.get("items") if isinstance(group.get("items"), list) else []
+                for rank, item in enumerate(items, 1):
+                    if not isinstance(item, dict):
+                        continue
+                    text = str(item.get("text") or "").strip()
+                    key = re.sub(r"\s+", "", text).casefold()
+                    if not key or key in seen:
+                        continue
+                    seen.add(key)
+                    picked.append(
+                        {"index": rank, "text": text, "right_tag": _tag_text(item.get("right_tag"))}
+                    )
+                    if len(picked) == cap:
+                        break
+                if picked:
+                    return {
+                        "items": picked,
+                        "board": board,
+                        "source_board": source_board,
+                        "source": {
+                            "all": "小黑盒综合热搜",
+                            "games": "小黑盒热门游戏",
+                            "discussions": "小黑盒社区热议",
+                        }[source_board],
+                        "fallback": source_board != board,
+                        "fetched_at": time.time(),
                     }
-                )
-            return picked
+        raise SchemaChanged(f"{SEARCH_WELCOME_PATH} 找不到所选榜单的有效数据")
 
-        # 主榜：head_text 为空的那组（游戏名 + 热议混排）
-        for group in groups:
-            if not isinstance(group, dict):
-                continue
-            if str(group.get("head_text") or "").strip():
-                continue
-            items = group.get("items") if isinstance(group.get("items"), list) else []
-            if items:
-                return _take(items)
-
-        # 退化：拿「黑盒热议」子榜（位置和主榜不同，只能当参考）
-        for group in groups:
-            if not isinstance(group, dict):
-                continue
-            if str(group.get("head_text") or "").strip() != HOT_GROUP_TITLE:
-                continue
-            items = group.get("items") if isinstance(group.get("items"), list) else []
-            if items:
-                logger.warning("热搜主榜缺失，退化到「%s」子榜", HOT_GROUP_TITLE)
-                return _take(items)
-
-        raise SchemaChanged(f"{SEARCH_WELCOME_PATH} 里找不到热搜榜数据，接口可能已变更")
+    async def fetch_hot_topics(self, *, limit: int = 5) -> list[dict[str, Any]]:
+        """Compatibility list interface; ranks always refer to the actual source board."""
+        return (await self.fetch_hot_board(limit=limit))["items"]
 
     async def search_topics(self, query: str) -> list[dict[str, Any]]:
         """搜话题（= 发帖时的"分区"）。参数名是 ``q`` 不是 keyword。"""
         keyword = str(query or "").strip()
         if not keyword:
             raise ValueError("搜索话题需要关键词")
-        url = self.build_api_url(
-            TOPIC_SEARCH_PATH, {"heybox_id": self.heybox_id, "q": keyword}
-        )
+        url = self.build_api_url(TOPIC_SEARCH_PATH, {"heybox_id": self.heybox_id, "q": keyword})
         data = await self._request_json("GET", url)
         result = data.get("result") if isinstance(data.get("result"), dict) else {}
         items = result.get("search_result")
@@ -688,16 +745,12 @@ class ProtocolClient:
                 FeedPost(
                     link_id=link_id,
                     title=str(link.get("title") or ""),
-                    description=_strip_html(
-                        str(link.get("description") or link.get("text") or "")
-                    ),
+                    description=_strip_html(str(link.get("description") or link.get("text") or "")),
                     author_name=str(user.get("username") or user.get("nickname") or ""),
                     up=int(link.get("up") or 0),
                     comment_num=int(link.get("comment_num") or 0),
                     topics=tuple(
-                        str(t.get("name"))
-                        for t in topics
-                        if isinstance(t, dict) and t.get("name")
+                        str(t.get("name")) for t in topics if isinstance(t, dict) and t.get("name")
                     ),
                 )
             )
@@ -736,9 +789,7 @@ class ProtocolClient:
             "topics": [str(t.get("name")) for t in topics if isinstance(t, dict)],
         }
 
-    async def fetch_dm_history(
-        self, to_user_id: str, *, limit: int = 20
-    ) -> list[DmMessage]:
+    async def fetch_dm_history(self, to_user_id: str, *, limit: int = 20) -> list[DmMessage]:
         """拉与某个用户的私信历史。
 
         实测字段：``content``（不是 ``msg``）、``send_time``(毫秒)、``seq``。
@@ -762,9 +813,7 @@ class ProtocolClient:
         data = await self._request_json("GET", url)
         result = data.get("result")
         if not isinstance(result, dict) or not isinstance(result.get("list"), list):
-            raise SchemaChanged(
-                f"{DIRECT_MESSAGE_PATH} 响应缺 result.list，接口可能已变更"
-            )
+            raise SchemaChanged(f"{DIRECT_MESSAGE_PATH} 响应缺 result.list，接口可能已变更")
 
         messages: list[DmMessage] = []
         for raw in result["list"]:
@@ -930,9 +979,7 @@ class ProtocolClient:
         )
         return {"url": url, "width": width, "height": height}
 
-    async def _prepare_images_in_html(
-        self, html: str
-    ) -> tuple[str, list[dict[str, Any]]]:
+    async def _prepare_images_in_html(self, html: str) -> tuple[str, list[dict[str, Any]]]:
         """把 HTML 里的外部图片转存到 CDN，返回 (新 HTML, 图片列表)。
 
         已经是小黑盒 CDN 的图不重复转存。
@@ -996,9 +1043,7 @@ class ProtocolClient:
             detail = await self.fetch_post_detail(target)
             numeric = str(detail.get("link_id") or "")
             if not numeric.isdigit():
-                raise SchemaChanged(
-                    f"无法从 {target} 取到数字 link_id，删除接口需要数字 id"
-                )
+                raise SchemaChanged(f"无法从 {target} 取到数字 link_id，删除接口需要数字 id")
             target = numeric
         url = self.build_api_url(LINK_DELETE_PATH, {"heybox_id": self.heybox_id})
         data = await self._request_json(
@@ -1041,9 +1086,7 @@ class ProtocolClient:
         result = data.get("result") if isinstance(data.get("result"), dict) else {}
         link = result.get("link") if isinstance(result.get("link"), dict) else {}
         user = link.get("user") if isinstance(link.get("user"), dict) else {}
-        owner = str(
-            user.get("userid") or user.get("heybox_id") or user.get("user_id") or ""
-        )
+        owner = str(user.get("userid") or user.get("heybox_id") or user.get("user_id") or "")
         if not owner:
             raise SchemaChanged(f"{LINK_TREE_PATH} 响应里找不到帖子作者，无法判断归属")
         return owner
@@ -1074,9 +1117,7 @@ class ProtocolClient:
         if not content:
             raise ValueError("评论内容为空，已取消")
         if len(content) > REPLY_MAX_LENGTH:
-            raise ValueError(
-                f"评论内容过长（{len(content)} 字，上限 {REPLY_MAX_LENGTH}）"
-            )
+            raise ValueError(f"评论内容过长（{len(content)} 字，上限 {REPLY_MAX_LENGTH}）")
 
         body: dict[str, str] = {
             "is_cy": "0",
@@ -1150,9 +1191,7 @@ class ProtocolClient:
             async with session.put(url, data=data, headers=headers) as response:
                 if response.status >= 400:
                     text = await response.text()
-                    raise TransportError(
-                        f"COS 图片上传失败：HTTP {response.status}，{text[:200]}"
-                    )
+                    raise TransportError(f"COS 图片上传失败：HTTP {response.status}，{text[:200]}")
 
     async def submit_post(
         self,
@@ -1405,9 +1444,10 @@ class ProtocolClient:
         items: list[InboxItem] = []
         dropped = 0
         for message in await self._fetch_message_list(message_type=message_type, limit=limit):
-            if channel == "comment" and str(
-                message.get("message_type") or ""
-            ) not in COMMENT_MESSAGE_TYPES:
+            if (
+                channel == "comment"
+                and str(message.get("message_type") or "") not in COMMENT_MESSAGE_TYPES
+            ):
                 # 点赞/关注等非评论通知，不出现在评论区通道，也不算丢弃
                 continue
             item = self._to_comment_item(message, channel)
@@ -1420,9 +1460,7 @@ class ProtocolClient:
     async def _fetch_direct_message_channel(self, limit: int) -> tuple[list[InboxItem], int]:
         items: list[InboxItem] = []
         dropped = 0
-        messages = await self._fetch_message_list(
-            message_type="", limit=limit, list_type="2"
-        )
+        messages = await self._fetch_message_list(message_type="", limit=limit, list_type="2")
         for message in messages:
             if str(message.get("entry") or "") != "message":
                 continue
@@ -1525,9 +1563,7 @@ class ProtocolClient:
         if not isinstance(data, dict):
             raise SchemaChanged(f"{QR_STATE_PATH} 返回结构变更：顶层不是对象")
         if data.get("status") != "ok":
-            raise TransportError(
-                f"{QR_STATE_PATH} 请求失败：{_error_message(data, 'unknown')}"
-            )
+            raise TransportError(f"{QR_STATE_PATH} 请求失败：{_error_message(data, 'unknown')}")
 
         result = data.get("result") if isinstance(data.get("result"), dict) else {}
         state = str(result.get("error") or "wait")

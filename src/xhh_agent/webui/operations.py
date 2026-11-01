@@ -22,6 +22,8 @@ from xhh_agent.protocol.models import InboxItem
 from xhh_agent.protocol.session import Session, SessionStore
 from xhh_agent.store.db import Store
 
+from .discovery import Discovery
+
 
 class Operations:
     def __init__(self, root, cfg, writer):
@@ -31,6 +33,7 @@ class Operations:
         self.session_path = Path(self.cfg.db_path).parent / "session.json"
         self.tickets = {}
         self.send_lock = asyncio.Lock()
+        self.discovery = Discovery(lambda: self.client())
 
     def client(self, *, blank=False):
         session = (
@@ -193,18 +196,10 @@ class Operations:
                 await client.close()
         if name not in {"hot", "topic", "study"}:
             raise ValueError("未知运营动作")
+        if name in {"hot", "topic"}:
+            return await self.discovery.get(body)
         client = self.client()
         try:
-            if name == "hot":
-                return {"ok": True, "items": await client.fetch_hot_topics(limit=8)}
-            if name == "topic":
-                query = str(body.get("query", "")).strip()[:100]
-                if not query:
-                    raise ValueError("请输入话题")
-                return {
-                    "ok": True,
-                    "items": await client.search_topic_posts(query, limit=8, time_range="7d"),
-                }
             with Store(Path(self.cfg.db_path)) as store:
                 result = await StudyRunner(
                     client, store, notes_dir=self.root / "notes/study", count=2

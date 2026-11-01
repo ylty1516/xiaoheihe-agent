@@ -10,11 +10,18 @@ xhh whoami
 xhh doctor
 xhh inbox -n 20
 xhh hot -n 5
+xhh hot --board games --format json
+xhh hot --board discussions
 xhh topic-posts "用户指定的游戏或话题" -n 8
+xhh topic-posts "当前话题" --sort comment_num --time-range 1d --format json
 ```
 
 查指定内容时不必先看热搜，数量只是示例。`doctor` 用于确认或诊断账号链路，
 不是本地改稿的前置条件。会话失效时提示 `xhh login`，不显示 cookie。
+hot 默认请求刷新，可用 `--no-refresh` 允许上游缓存；topic-posts 默认近24小时、最新发布，
+可切换 create_date / award_num / comment_num / default 排序及 7d、30d 等时间范围。
+近24小时按真实发布时间本地过滤，无日期条目不混入。JSON 保留来源和采集时间，数据是有限样本，
+旧高互动帖不等于实时热点；面板自动更新与来源规则见项目 `docs/discovery.md`。
 
 ## 拟稿、预览和发布
 

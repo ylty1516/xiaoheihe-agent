@@ -5,6 +5,7 @@
   let saveTimer, saveChain = Promise.resolve(), conflict = false, library = {drafts:[],archived:[],published:[]};
   let libraryTab = 'drafts', previewing = false, report = null, model = {}, aiMode = 'outline', generation = null, aiBusy = false;
   let activeNote = null, contentProfile = 'article';
+  let discoveryQuery='', discoveryTimer, discoverySeq=0, discoveryLoaded=false, operationPane='discover', discoveryFailures=0, displayedDiscovery=null;
   let selectedRange = null, replyRow = null, loginTimer = null, screen = 'writing', topicPurpose='search';
   const labels = {writing:'把精力留给内容。',library:'每一篇，都有着落。',workbench:'从社区获得下一篇灵感。',logs:'运行状态，一目了然。'};
   const date = ts => new Date(ts*1000).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -24,7 +25,7 @@
     document.querySelectorAll('.nav a').forEach(link=>{if(link.hash==='#'+screen)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
     $('pageTitle').textContent=labels[screen];
     if(screen==='library') renderLibrary();
-    if(screen==='workbench') loadComments().catch(error=>toast(error.message,true));
+    if(screen==='workbench') {loadComments().catch(error=>toast(error.message,true));if(operationPane==='discover'&&(!discoveryLoaded||$('autoDiscover').checked))discover(discoveryQuery,{automatic:true});}else clearTimeout(discoveryTimer);
   }
   function count() { const body=$('articleBody').value; const images=(body.match(/!\[[^\]]*\]\([^)]*\)/g)||[]).length; const chars=body.replace(/!\[[^\]]*\]\([^)]*\)/g,'').replace(/[\s#*`]/g,'').length; $('wordCount').textContent=`${chars} 字 · ${images} 张图`; }
   function mark() {
@@ -157,10 +158,43 @@
   }
   function output(text) {$('operationOutput').hidden=false;$('operationOutput').textContent=text;}
   async function operation(name) {output('正在处理…');const data=await api('/api/action',{name});output((data.lines||[]).join('\n')||data.title);await refreshState();if(name==='poll')await loadComments();}
-  async function discover(query) {
-    output(query?'正在搜索社区话题…':'正在获取热搜…');const data=await api('/api/operate',{action:query?'topic':'hot',query});const list=$('discoverList');list.replaceChildren();
-    for(const item of data.items) {const title=item.title||item.text;const view=row(title,item.description||'');view.box.className='content-row';view.actions.append(button('带入写作',async()=>{await newDraft();$('titleInput').value=title.slice(0,100);notes='选题线索：'+title+(item.description?'\n社区摘要（须核实）：'+item.description:'')+(item.link_id?'\n来源：https://www.xiaoheihe.cn/app/bbs/link/'+item.link_id:'');mark();await save();toast('选题已带入新稿，资料保留在 AI 助手中');}));if(!query)view.actions.append(button('看社区讨论',()=>discover(item.text),'secondary'));list.append(view.box);}
-    if(!data.items.length)empty(list,'没有找到相关内容');output('已获取 '+data.items.length+' 条线索。社区摘要需要核实后使用。');
+  function discoveryActive() {return screen==='workbench'&&operationPane==='discover'&&!document.hidden;}
+  function scheduleDiscovery() {clearTimeout(discoveryTimer);if(discoveryActive()&&$('autoDiscover').checked)discoveryTimer=setTimeout(()=>discover(discoveryQuery,{force:true,automatic:true}),Math.min(300000,60000*2**Math.min(discoveryFailures,2)));}
+  function preferredDiscoveryTopic(item,data) {
+    const key=value=>String(value||'').replace(/[^\p{L}\p{N}]/gu,'').toLowerCase(),topics=item.topics||[];
+    const exact=topics.find(t=>key(t.name)===key(data.query));if(exact)return exact.name;
+    const games=topics.filter(t=>t.topic_id!=='1'&&t.game_type==='pc');if(games.length===1)return games[0].name;
+    if(games.length===0){const others=topics.filter(t=>t.topic_id!=='1'&&t.game_type);if(others.length===1)return others[0].name;}
+    return data.source_board==='games'?item.text:'PC游戏';
+  }
+  async function discoveryDraft(item,data) {
+    const title=item.title||item.text;await newDraft();$('titleInput').value=title.slice(0,100);chooseTopic(preferredDiscoveryTopic(item,data));
+    notes='选题线索：'+title+'\n数据来源：'+data.source+'\n采集时间：'+new Date(data.fetched_at*1000).toISOString()+'\n采集时间不等于话题发生时间；榜单和社区摘要仅为线索，须核对原始资料。'+(data.stale?'\n注意：此次更新失败，保留的是旧采集结果。':'')+(data.query?'\n搜索词：'+data.query+'；范围：'+(data.time_range||'不限')+'；排序：'+data.sort:'')+(item.published_at?'\n帖子发布时间：'+new Date(item.published_at*1000).toISOString():'')+(item.topics?.length?'\n原帖分区：'+item.topics.map(t=>t.name).join('、'):'')+(item.description?'\n社区摘要（须核实）：'+item.description:'')+(item.link_id?'\n来源：https://www.xiaoheihe.cn/app/bbs/link/'+item.link_id:'');
+    $('aiMaterial').value=notes;mark();await save();toast('选题与来源已带入新稿，请核对资料和分区');
+  }
+  function renderDiscovery(data) {
+    const list=$('discoverList');list.replaceChildren();$('discoverFilters').hidden=!data.query;$('discoverHeading').textContent=data.query?'关于“'+data.query+'”的讨论':data.source;
+    const stamp=data.fetched_at?new Date(data.fetched_at*1000).toLocaleString('zh-CN'): '时间未知';
+    $('discoverStatus').textContent=data.source+(data.query?' · '+({'1d':'近24小时','7d':'近7天','30d':'近30天','':'不限时间'}[data.time_range]||data.time_range)+' · '+({'create_date':'最新发布','award_num':'点赞优先','comment_num':'评论优先','default':'平台排序'}[data.sort]||data.sort):'')+' · 采集于 '+stamp+(data.cached?' · 缓存':'')+(data.fallback?' · 主榜缺失，使用热议子榜':'')+(data.stale?' · 更新失败，当前为旧结果':'');
+    $('discoverNote').textContent=(data.warning||data.sample_note||'排名变化与上一次成功采集比较；采集时间不是话题发生时间。')+' 自动更新仅在本页可见时运行，正常每60秒采集，失败后延迟重试。';
+    for(const item of data.items) {
+      const title=item.title||item.text;let sub;
+      if(data.query)sub=(item.published_at?date(item.published_at):'发布时间未知')+' · 评论 '+item.comment_num+' · 赞 '+(item.award_num||item.up||0);
+      else sub='第 '+item.index+' 位'+(item.right_tag?' · '+item.right_tag:'')+(item.movement==='new'?' · 本次新入榜':item.movement==='up'?' · ↑'+item.change:item.movement==='down'?' · ↓'+Math.abs(item.change):'');
+      const view=row(title,sub);view.box.className='content-row';if(item.description){const excerpt=document.createElement('p');excerpt.textContent=item.description;view.main.append(excerpt);}
+      view.actions.append(button('带入写作',()=>discoveryDraft(item,data)));if(!data.query)view.actions.append(button('看最新讨论',()=>{$('discoverySort').value='create_date';$('discoveryWindow').value='1d';return discover(item.text,{force:true});},'secondary'));
+      if(item.link_id){const link=document.createElement('a');link.textContent='查看原帖';link.href='https://www.xiaoheihe.cn/app/bbs/link/'+encodeURIComponent(item.link_id);link.target='_blank';link.rel='noopener noreferrer';view.actions.append(link);}list.append(view.box);
+    }
+    if(!data.items.length)empty(list,'所选时间范围暂无结果，可切换时间范围或排序。');
+  }
+  async function discover(query=discoveryQuery,{force=false,automatic=false}={}) {
+    clearTimeout(discoveryTimer);if(automatic&&!discoveryActive())return;
+    const seq=++discoverySeq;discoveryQuery=query;$('btnHot').disabled=true;$('discoverStatus').textContent='正在获取'+(query?'“'+query+'”的讨论':'当前热榜')+'…';
+    try {
+      const data=await api('/api/operate',{action:query?'topic':'hot',query,board:$('hotBoard').value,sort:$('discoverySort').value,time_range:$('discoveryWindow').value,refresh:force});if(seq!==discoverySeq)return;
+      displayedDiscovery=data;discoveryLoaded=true;discoveryFailures=data.stale?discoveryFailures+1:0;renderDiscovery(data);
+    }catch(error){if(seq!==discoverySeq)return;discoveryFailures++;if(displayedDiscovery)renderDiscovery(displayedDiscovery);$('discoverStatus').textContent='更新失败：'+error.message+(displayedDiscovery?'；仍显示上次“'+(displayedDiscovery.query||displayedDiscovery.source)+'”的结果。':'');if(!automatic)toast(error.message,true);}
+    finally {if(seq===discoverySeq){$('btnHot').disabled=false;scheduleDiscovery();}}
   }
   async function loadComments() {
     const data=await api('/api/comments');$('commentCount').textContent=data.items.length||'';const list=$('commentList');list.replaceChildren();
@@ -190,7 +224,7 @@
   document.querySelectorAll('[data-close]').forEach(node=>node.onclick=()=>$(node.dataset.close).close());
   document.querySelectorAll('[data-ai-mode]').forEach(node=>node.onclick=()=>setAIMode(node.dataset.aiMode));
   document.querySelectorAll('[data-operation]').forEach(node=>node.onclick=run(()=>operation(node.dataset.operation)));
-  document.querySelectorAll('[data-operation-view]').forEach(node=>node.onclick=()=>{document.querySelectorAll('[data-operation-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===node)));document.querySelectorAll('[data-operation-pane]').forEach(p=>p.hidden=p.dataset.operationPane!==node.dataset.operationView);});
+  document.querySelectorAll('[data-operation-view]').forEach(node=>node.onclick=()=>{document.querySelectorAll('[data-operation-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===node)));operationPane=node.dataset.operationView;document.querySelectorAll('[data-operation-pane]').forEach(p=>p.hidden=p.dataset.operationPane!==operationPane);clearTimeout(discoveryTimer);if(operationPane==='discover')discover(discoveryQuery,{automatic:true});});
   function topicDialog(purpose) {topicPurpose=purpose;$('topicDialogTitle').textContent=purpose==='custom'?'选择发布分区':'搜索社区话题';$('btnConfirmTopic').textContent=purpose==='custom'?'采用分区':'搜索';$('topicQuery').value='';dialog('topicDialog');$('topicQuery').focus();}
   for(const id of ['aiProfile','publishProfile'])$(id).onchange=run(async()=>{chooseProfile($(id).value);mark();await save();if($('publishDialog').open)await check();});
   $('topicInput').onchange=()=>{if($('topicInput').value==='__custom'){topicDialog('custom');return;}mark();if($('publishDialog').open)check().catch(error=>toast(error.message,true));};
@@ -200,12 +234,12 @@
   $('btnPreview').onclick=run(togglePreview);$('btnCheck').onclick=run(check);$('warnOk').onchange=updatePublishButton;$('btnPublish').onclick=run(publish);
   $('btnAI').onclick=run(openAI);$('btnGenerate').onclick=run(generate);$('btnApplyAI').onclick=run(applyAI);
   $('modelSetup').onclick=()=>dialog('modelDialog');$('btnSaveModel').onclick=run(async()=>{await api('/api/model',{base_url:$('modelURL').value,model:$('modelName').value,api_key:$('modelKey').value,persist:$('persistModel').checked});$('modelKey').value='';await loadModel();$('modelDialog').close();toast('AI 设置已保存');});
-  $('btnHot').onclick=run(()=>discover(''));$('btnTopic').onclick=()=>topicDialog('search');
+  $('btnHot').onclick=()=>discover('',{force:true});$('hotBoard').onchange=()=>discover('',{force:true});$('autoDiscover').onchange=()=>{$('autoDiscover').checked?discover(discoveryQuery,{automatic:true}):clearTimeout(discoveryTimer);};for(const id of ['discoverySort','discoveryWindow'])$(id).onchange=()=>discover(discoveryQuery,{force:true});$('btnTopic').onclick=()=>topicDialog('search');
   $('btnStudy').onclick=run(async()=>{output('正在学习两篇帖子…');const data=await api('/api/operate',{action:'study'});output(data.summary);await refreshState();});
   $('btnQueueRefresh').onclick=run(loadComments);$('btnGenerateReply').onclick=run(async()=>{const data=await api('/api/operate',{action:'generate_reply',id:replyRow.id});$('replyText').value=data.text;});$('btnSendReply').onclick=run(sendReply);
   $('btnAnalyzeNote').onclick=run(async()=>{if(!model.configured)throw new Error('请先在 AI 设置中配置模型');$('btnAnalyzeNote').disabled=true;$('noteStatus').textContent='正在分析写法…';try{const result=await api('/api/note/analyze',{name:activeNote});$('noteText').textContent='读者问题：'+result.card.reader_question+'\n\n论证顺序：\n'+result.card.argument_order.join(' → ')+'\n\n证据用途：\n'+result.card.evidence_usage.join('\n')+'\n\n适用条件：'+result.card.applicable_when;$('noteStatus').textContent='已保存为可检索的写法卡，保留原文出处。';}catch(error){$('noteStatus').textContent='分析未完成，原文已保留。';throw error;}finally{$('btnAnalyzeNote').disabled=false;}});
   $('loginButton').onclick=run(login);$('btnRenewQR').onclick=run(login);$('loginDialog').addEventListener('close',()=>clearTimeout(loginTimer));$('btnRefreshState').onclick=run(refreshState);
-  window.addEventListener('hashchange',showScreen);window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
+  document.addEventListener('visibilitychange',()=>{clearTimeout(discoveryTimer);if(discoveryActive()&&$('autoDiscover').checked)discover(discoveryQuery,{automatic:true});});window.addEventListener('hashchange',showScreen);window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().catch(error=>toast(error.message,true));}if((event.ctrlKey||event.metaKey)&&event.key==='Enter'&&current&&!document.querySelector('dialog[open]')){event.preventDefault();check().catch(error=>toast(error.message,true));}});
   showScreen();Promise.all([loadLibrary(),loadModel(),refreshState()]).then(async()=>{if(library.drafts[0])await openDraft(library.drafts[0].name,false);}).catch(error=>toast(error.message,true));
   setInterval(()=>{if(!document.hidden)refreshState();},15000);
