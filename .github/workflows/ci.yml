@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feat/dsh-go-mobile]
   pull_request:
 
 jobs:
@@ -32,3 +32,25 @@ jobs:
 
       - name: 测试
         run: pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: DSH Go 手机适配测试
+        run: node --test integrations/dsh-go/test/*.test.js
+
+  dsh-go-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ccch1mneyyy/dsh-Go
+          ref: d44f9607b69bc284a733e554805f283b30471e7a
+          path: .dsh-go-sdk
+          sparse-checkout: sdk/plugin-kit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: 官方原生插件加载检查
+        run: node .dsh-go-sdk/sdk/plugin-kit/bin/check.mjs integrations/dsh-go --load

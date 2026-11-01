@@ -7,6 +7,8 @@
 WebUI 的「自动完成」把选题、读取资料、写稿、检查和保存串成后台任务；可选择本篇检查通过后自动发布。
 配图由支持内置生图的插件接续回填，支持恢复中断任务。用法见 [自动成稿](docs/autopilot.md)。
 
+DSH Go 手机原生入口见 [手机适配说明](integrations/dsh-go/README.md)：输入框胶囊启动成稿，原生面板查看进度与正文。
+
 ```
 xhh publish --md 稿子.md --title "标题" --tag 1 --yes
 ```
