@@ -8,6 +8,7 @@ the standalone Python server cannot invoke a chat-only image generation tool.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import re
 import sqlite3
@@ -18,7 +19,13 @@ import aiohttp
 
 from xhh_agent.content.editorial import load_history, write_json
 from xhh_agent.content.desk import Desk
-from xhh_agent.content.persona import Personas, reference, voice_notes
+from xhh_agent.content.persona import (
+    VISUAL_POLICY_VERSION,
+    Personas,
+    compile_visual,
+    reference,
+    voice_notes,
+)
 from xhh_agent.content.stats import get_profile
 from xhh_agent.content.topics import pick_topic
 from xhh_agent.content.writing import genre, subject
@@ -423,7 +430,8 @@ class Autopilot:
             "troubleshooting/mechanism/debate/update/guide/investigation)、topic(真实分区名称，未知留空)、"
             "question(读者问题)、conclusion(有条件的结论)、new_information(具体信息增量)、"
             "evidence(列表，每项含 source_index 和 paragraph_index，必须从 evidence_passages 选择真实索引，不翻译或改写摘录)、"
-            "images(0-3项，各含 purpose、prompt、anchor；只设计非证据性示意图，不能伪造截图/实测/官方原画)。"
+            "images(0-8项，数量按内容需要，不凑满；合集可每个重点项目一张，各含 kind(cover/section/diagram)、purpose、prompt、anchor；"
+            "只设计非证据性示意图，不能伪造截图/实测/官方原画；不要重复装饰图)。"
             "题材/写法按本次显式选择；素材不足返回 error 字符串。不要把全部稿件都写成分析攻略。",
             {
                 "material": self.material(job),
@@ -482,8 +490,8 @@ class Autopilot:
         topic = plan.get("topic") or selected["topic"]
         if not isinstance(topic, str) or len(topic) > 100:
             raise ValueError("自动分区名称无效")
-        images = plan.get("images", []) if job["request"]["images"] == "auto" else []
-        if not isinstance(images, list) or len(images) > 3:
+        images = copy.deepcopy(plan.get("images", [])) if job["request"]["images"] == "auto" else []
+        if not isinstance(images, list) or len(images) > 8:
             raise ValueError("自动配图计划无效")
         if len(images) < get_profile(job["request"]["profile"]).min_images:
             raise ValueError("长文需要相关配图，但未得到可用配图计划")
@@ -493,7 +501,21 @@ class Autopilot:
                 for k in ("purpose", "prompt", "anchor")
             ):
                 raise ValueError("配图需要明确用途、提示词与插入位置")
-            image.update(id=uuid.uuid4().hex, markdown="", caption="AI生成示意图，非实测或官方画面")
+            kind = image.get("kind", "section")
+            image.update(
+                id=uuid.uuid4().hex,
+                kind=kind,
+                markdown="",
+                caption="AI生成示意图，非实测或官方画面",
+                prompt=compile_visual(
+                    job["persona_snapshot"],
+                    kind=kind,
+                    purpose=image["purpose"],
+                    brief=image["prompt"],
+                ),
+                persona=reference(job["persona_snapshot"]),
+                visual_policy_version=VISUAL_POLICY_VERSION,
+            )
         brief = {
             "reader": "对该话题感兴趣的小黑盒读者",
             "question": plan["question"],

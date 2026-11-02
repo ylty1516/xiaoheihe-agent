@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>创作台 · 小黑盒</title><link rel="stylesheet" href="/console.css?v=0.6.0"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>创作台 · 小黑盒</title><link rel="stylesheet" href="/console.css?v=0.6.1"></head>
 <body>
 <a class="skip-link" href="#writing">跳到写作台</a>
 <div class="ambient" aria-hidden="true"><div class="ambient-orbit orbit-one"></div><div class="ambient-orbit orbit-two"></div><div class="cursor-light" id="cursorLight"></div></div>
@@ -65,9 +65,10 @@
 <div class="action-strip"><select id="personaSelect" aria-label="选择人设卡"></select><button id="personaImport" class="text-button">导入</button><button id="personaExport" class="text-button">导出</button><select id="personaExportFormat" aria-label="导出格式"><option value="native">完整人设卡</option><option value="astrbot">AstrBot 格式</option></select></div>
 <div class="field"><label for="personaPrompt">人设描述</label><textarea id="personaPrompt" rows="4" placeholder="性格、语气、表达偏好。现有设定会保留在这里。"></textarea></div>
 <div class="field"><label for="personaExamples">例文与改稿示例</label><textarea id="personaExamples" rows="4" placeholder="可直接贴喜欢的例文，或按“素材/要求：”“参考成稿：”“修改前：”填写。多组用单独一行 --- 分隔。"></textarea></div>
-<details><summary>场景表达与版本</summary><div class="field"><label for="personaName">名称</label><input id="personaName" maxlength="80"></div><div id="personaScenes" class="writing-scope-grid"></div><div class="action-strip"><select id="personaRevision" aria-label="选择历史版本"></select><button id="personaRollback" class="secondary">恢复此版本</button></div><p class="muted">恢复会保存为新修订，保留历史记录。导出为 AstrBot 格式时仅保留人格描述和示例对话。</p></details>
+<details id="personaVisual"><summary>配图与角色</summary><p class="muted">新配图会读取同一人设版本。更换布局、动作和项目内容时，保留角色识别特征。</p><div class="field"><label for="personaCharacter">人物外观</label><textarea id="personaCharacter" rows="3" maxlength="2400" placeholder="发色、发夹、服装、表情和识别道具；留空则不指定角色。"></textarea></div><div class="field"><label for="personaArtDirection">画面方向</label><textarea id="personaArtDirection" rows="3" maxlength="3000" placeholder="画法、色板、信息层级和构图变化；具体数字以本篇资料为准。"></textarea></div></details>
+<details><summary>场景表达与版本</summary><div class="field"><label for="personaName">名称</label><input id="personaName" maxlength="80"></div><div id="personaScenes" class="writing-scope-grid"></div><div class="action-strip"><select id="personaRevision" aria-label="选择历史版本"></select><button id="personaRollback" class="secondary">恢复此版本</button></div><p class="muted">恢复会保存为新修订，保留历史记录。导出为 AstrBot 格式时仅保留人格描述和示例对话，配图设定需使用完整格式。</p></details>
 <details id="personaTrial"><summary>用同一份材料试写两版</summary><div class="field"><label for="personaTrialMaterial">试写材料与要求</label><textarea id="personaTrialMaterial" rows="3" placeholder="附上可用事实，并说明篇幅。分别用已保存版和当前编辑版生成，只预览。"></textarea></div><select id="personaTrialScene" aria-label="试写场景"><option value="short">短帖</option><option value="article">长文</option><option value="tutorial">教程</option><option value="comment">评论</option></select><button id="personaTrialStart" class="secondary">试写两版</button><div id="personaTrialResults" class="persona-results"></div></details>
 <div class="dialog-footer"><span id="personaStatus" role="status"></span><button id="personaSave" class="primary">保存并使用</button></div>
 </dialog><input type="file" id="personaFile" accept="application/json,.json" hidden>
-<script src="/editorial.js?v=0.6.0"></script><script src="/personas.js?v=0.6.0"></script><script src="/effects.js?v=0.6.0"></script>
+<script src="/editorial.js?v=0.6.1"></script><script src="/personas.js?v=0.6.1"></script><script src="/effects.js?v=0.6.1"></script>
 </body></html>

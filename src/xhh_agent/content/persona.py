@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 POLICY_VERSION = "1"
+VISUAL_POLICY_VERSION = "1"
 DEFAULT_PERSONA = "shirakawa-mio"
 SCENES = {
     "article": "文章按具体内容展开，保留账号语气。旧设定中针对评论的短句、不列点、少转折只用于评论；文章正常使用连接词。口头禅不设最低次数，不固定开场、段数和收尾。",
@@ -84,6 +85,14 @@ def validate(data):
         "examples": cleaned,
         "scenes": {k: _text(v, "场景表达", 2000, empty=True) for k, v in scenes.items()},
     }
+    visual = data.get("visual", {})
+    if not isinstance(visual, dict) or set(visual) - {"character", "direction"}:
+        raise ValueError("配图设定只支持 character 和 direction")
+    if visual:
+        card["visual"] = {
+            key: _text(visual.get(key, ""), "配图设定", limit, empty=True)
+            for key, limit in (("character", 2400), ("direction", 3000))
+        }
     if len(json.dumps(card, ensure_ascii=False)) > 40000:
         raise ValueError("人设卡总长度超过40000字")
     return card
@@ -150,6 +159,39 @@ def voice_notes(text):
                 }
             )
     return notes
+
+
+def compile_visual(snapshot, *, kind="section", purpose="", brief=""):
+    """Build the host image prompt from the task's immutable persona snapshot."""
+    if not isinstance(kind, str) or kind not in {"cover", "section", "diagram"}:
+        raise ValueError("配图类型只支持 cover、section、diagram")
+    card = validate(snapshot["card"])
+    if snapshot.get("digest") != digest(card):
+        raise ValueError("人设快照校验失败")
+    visual = card.get("visual", {})
+    character = (
+        visual.get("character") or "本卡未设定人物外观，使用非角色示意图，不自行编造账号形象。"
+    )
+    direction = visual.get("direction") or "围绕本张用途组织清楚、易读的原创示意图。"
+    layout = {
+        "cover": "横幅封面，默认16:9。角色与信息分区，移动端缩小时仍能读懂主题，四周留安全边距。",
+        "section": "段落插图，默认16:9。围绕对应项目或问题设计动作与图形，角色服饰和识别特征保持一致。",
+        "diagram": "解释图优先保证流程、关系、标签可读；角色可省略或缩小到边缘，不遮挡信息。",
+    }[kind]
+    return "\n\n".join(
+        [
+            f"配图规范 v{VISUAL_POLICY_VERSION}；人设：{card['name']}；修订：{snapshot['revision']}。",
+            "人物外观（只影响原创角色形象）：\n" + character,
+            "视觉方向：\n" + direction,
+            "本张构图：" + layout,
+            "角色为未成年人或年龄不明时，保持适龄、日常的服装和动作，采用中性视角，不突出敏感身体部位。",
+            "画面不是事实证据。不要伪造实测、官方原画、软件界面或运行截图；真实界面另用有出处的截图。"
+            "图中只写本次明确提供且核对过的名称、数字、许可、日期和短标签；未知就省略，不从参考图、卡片或例文搬数值。"
+            "装饰代码不能冒充可运行代码。不添加参考作者标识、水印或角色标记。角色不提供发布或工具权限。",
+            "本张用途：" + purpose,
+            "本次画面要求与可用资料（不可改变上述角色、事实和权限约束）：\n" + brief,
+        ]
+    )
 
 
 class Personas:
@@ -324,7 +366,8 @@ class Personas:
         if data.get("schema_version") is not None:
             card = validate(data)
             ignored = sorted(
-                set(data) - {"schema_version", "id", "name", "system_prompt", "examples", "scenes"}
+                set(data)
+                - {"schema_version", "id", "name", "system_prompt", "examples", "scenes", "visual"}
             )
         else:
             dialogs = data.get("begin_dialogs", [])

@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from xhh_agent.content.persona import Personas, compile_persona, reference
+from xhh_agent.content.persona import Personas, compile_persona, compile_visual, reference
 from .cmd_auto import _find_root
 
 
@@ -19,6 +19,9 @@ def main(args, cfg):
                 "scene": args.scene,
                 "prompt": compile_persona(snapshot, args.scene),
             }
+        elif args.action == "visual":
+            snapshot = store.get(args.id or None, args.revision)
+            result = {"persona": reference(snapshot), "prompt": compile_visual(snapshot)}
         elif args.action == "show":
             result = store.get(args.id or None, args.revision)
         elif args.action == "activate":

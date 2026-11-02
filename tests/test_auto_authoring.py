@@ -356,3 +356,39 @@ async def test_http_job_survives_response_and_get_is_read_only(tmp_path, monkeyp
         assert fake_writer.calls == 1
     finally:
         await client.close()
+
+
+async def test_roundup_images_share_frozen_visual_card_but_keep_individual_briefs(tmp_path):
+    from xhh_agent.content.persona import Personas
+
+    store = Personas(tmp_path)
+    base = store.get()["card"]
+    first = store.save(
+        {**base, "visual": {"character": "白发和蓝发夹", "direction": "柔和底色，信息分区"}}, 0
+    )
+    writer = Writer()
+    writer.image_count = 5
+    svc = service(tmp_path, writer)
+    job = create(svc)
+    store.save({**first["card"], "visual": {"character": "另一套形象"}}, 1)
+    result = await svc.run(job["id"])
+    assert result["state"] == "awaiting_images"
+    images = svc.image_requests(result)
+    assert "白发和蓝发夹" not in result["plan"]["images"][0]["prompt"]
+    assert len(images) == 5
+    assert len({image["id"] for image in images}) == 5
+    for image in images:
+        assert "白发和蓝发夹" in image["prompt"] and "另一套形象" not in image["prompt"]
+        assert "一张概念示意图" in image["prompt"]
+        assert image["persona"]["digest"] == first["digest"]
+        assert image["visual_policy_version"] == "1"
+    restored = service(tmp_path).read(result["id"])
+    assert restored["images"] == result["images"]
+
+
+async def test_image_plan_limit_still_bounds_unattended_work(tmp_path):
+    writer = Writer()
+    writer.image_count = 9
+    svc = service(tmp_path, writer)
+    result = await svc.run(create(svc)["id"])
+    assert result["state"] == "failed" and "配图计划无效" in result["message"]

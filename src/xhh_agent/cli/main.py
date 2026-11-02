@@ -181,7 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     pilot.add_argument("--image-id", default="", help="待配图条目 ID")
     pilot.add_argument("--file", default="", help="生成好的图片路径")
     persona = sub.add_parser("persona", help="统一人设卡：读取、导入、版本与场景提示词")
-    persona.add_argument("action", choices=("list", "show", "prompt", "import", "save", "export", "activate", "rollback"))
+    persona.add_argument("action", choices=("list", "show", "prompt", "visual", "import", "save", "export", "activate", "rollback"))
     persona.add_argument("--root", default="")
     persona.add_argument("--id", default="")
     persona.add_argument("--revision", type=int, default=None)

@@ -12,6 +12,7 @@ from xhh_agent.content.persona import (
     DEFAULT_PERSONA,
     Personas,
     compile_persona,
+    compile_visual,
     digest,
     validate,
     voice_notes,
@@ -282,3 +283,51 @@ def test_builtin_edit_archives_original_and_explicit_selection_survives(tmp_path
     store.activate("legacy")
     assert Personas(tmp_path).active_id() == "legacy"
     assert Personas(tmp_path).get()["card"]["id"] == "legacy"
+
+
+def test_visual_roundtrip_and_legacy_hash_compatibility(tmp_path):
+    store = Personas(tmp_path)
+    old = validate(card())
+    assert "visual" not in old
+    assert digest({**old, "visual": {}}) == digest(old)
+    snapshot = store.save(
+        {**card(), "visual": {"character": "白发蓝发夹", "direction": "信息卡与人物分区"}}, 0
+    )
+    exported = store.export("author")
+    assert exported["visual"] == snapshot["card"]["visual"]
+    imported = store.import_card(exported)
+    assert imported["card"]["visual"] == exported["visual"]
+    assert "visual" not in imported["ignored_fields"]
+    assert "visual" not in store.export("author", "astrbot")
+    prompt = compile_visual(snapshot, kind="diagram", purpose="解释文件流向", brief="三个步骤")
+    assert "白发蓝发夹" in prompt and "角色可省略" in prompt and "三个步骤" in prompt
+    assert "不是事实证据" in prompt and "敏感身体部位" in prompt
+    assert "白发蓝发夹" not in compile_persona(snapshot)
+    with pytest.raises(ValueError, match="快照校验"):
+        compile_visual({**snapshot, "digest": "tampered"})
+    for kind in ("screenshot", [], None):
+        with pytest.raises(ValueError, match="配图类型"):
+            compile_visual(snapshot, kind=kind)
+
+
+@pytest.mark.parametrize(
+    "visual", [[], {"tools": "publish"}, {"character": "x" * 2401}, {"direction": 1}]
+)
+def test_invalid_visual_settings_are_rejected(visual):
+    with pytest.raises(ValueError):
+        validate({**card(), "visual": visual})
+
+
+def test_cli_visual_uses_the_saved_version(tmp_path, capsys):
+    from xhh_agent.cli.main import main
+
+    store = Personas(tmp_path)
+    first = store.save({**card(), "visual": {"character": "白发蓝发夹"}}, 0, activate=True)
+    store.save({**first["card"], "visual": {"character": "另一形象"}}, 1)
+    assert (
+        main(["persona", "visual", "--root", str(tmp_path), "--id", "author", "--revision", "1"])
+        == 0
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert result["persona"]["digest"] == first["digest"]
+    assert "白发蓝发夹" in result["prompt"] and "另一形象" not in result["prompt"]
