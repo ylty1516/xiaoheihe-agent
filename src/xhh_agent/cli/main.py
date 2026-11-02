@@ -180,6 +180,15 @@ def build_parser() -> argparse.ArgumentParser:
     pilot.add_argument("--yes", action="store_true", help="明确授权本次自动任务公开发布")
     pilot.add_argument("--image-id", default="", help="待配图条目 ID")
     pilot.add_argument("--file", default="", help="生成好的图片路径")
+    persona = sub.add_parser("persona", help="统一人设卡：读取、导入、版本与场景提示词")
+    persona.add_argument("action", choices=("list", "show", "prompt", "import", "save", "export", "activate", "rollback"))
+    persona.add_argument("--root", default="")
+    persona.add_argument("--id", default="")
+    persona.add_argument("--revision", type=int, default=None)
+    persona.add_argument("--expected-revision", type=int, default=None)
+    persona.add_argument("--file", default="")
+    persona.add_argument("--format", choices=("native", "astrbot"), default="native")
+    persona.add_argument("--scene", choices=("article", "short", "tutorial", "comment"), default="article")
     return p
 
 
@@ -221,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
         "topic-posts",
         "auto",
         "autopilot",
+        "persona",
     ):
         from xhh_agent.config import load_config
 
@@ -256,6 +266,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_topic import main as handler
         elif args.command == "delete":
             from xhh_agent.cli.cmd_delete import main as handler
+        elif args.command == "persona":
+            from xhh_agent.cli.cmd_persona import main as handler
         elif args.command == "autopilot":
             from xhh_agent.cli.cmd_autopilot import main as handler
         elif args.command == "auto":

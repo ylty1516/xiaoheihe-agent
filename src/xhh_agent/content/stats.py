@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from .persona import voice_notes
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -132,6 +133,8 @@ def check_post(markdown: str, *, profile: str = "article") -> tuple[list[str], l
     hits = [w for w in stock if prose.count(w) >= 2]
     if hits:
         notes.append(f"套话重复：{'、'.join(hits)}，检查是否可用具体事实替换")
+    for issue in voice_notes(markdown):
+        notes.append(f"表达提醒：{issue['kind']}「{issue['excerpt']}」；{issue['advice']}")
 
     emoji_count = len(_EMOJI.findall(markdown))
     style_issues = problems if rules.strict_style else notes

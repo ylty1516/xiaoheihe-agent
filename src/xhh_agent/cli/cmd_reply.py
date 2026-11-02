@@ -15,8 +15,6 @@ import json
 import sys
 from pathlib import Path
 
-from pathlib import Path
-
 from xhh_agent.automation.gate import Gate
 from xhh_agent.automation.poll import PollRunner
 from xhh_agent.automation.generator import (
@@ -30,6 +28,7 @@ from xhh_agent.protocol.client import ProtocolClient
 from xhh_agent.protocol.errors import LoginExpired, XhhError
 from xhh_agent.protocol.session import SessionStore
 from xhh_agent.store.db import Store
+from xhh_agent.content.persona import Personas
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -48,18 +47,19 @@ def _relogin() -> int:
 
 # ── poll ────────────────────────────────────────────────
 
+
 def _make_generator(cfg: Config):
     """定时任务用：构造生成器。没有 key 就返回 None（只入队不生成）。"""
     if not cfg.llm_api_key:
         print(
-            "没有可用的模型 key（XHH_LLM_API_KEY / DEEPSEEK_API_KEY），"
-            "只会入队不会生成草稿喵。",
+            "没有可用的模型 key（XHH_LLM_API_KEY / DEEPSEEK_API_KEY），只会入队不会生成草稿喵。",
             file=sys.stderr,
         )
         return None
     return LlmReplyGenerator(
         client=OpenAICompatClient(base_url=cfg.llm_base_url, api_key=cfg.llm_api_key),
-        profile_text=_load_profile(),
+        profile_text="",
+        persona_snapshot=_reply_persona(cfg),
         model=cfg.llm_model,
     )
 
@@ -106,6 +106,7 @@ def poll_main(args: object, cfg: Config) -> int:
 
 
 # ── queue ───────────────────────────────────────────────
+
 
 def queue_main(args: object, cfg: Config) -> int:
     action = getattr(args, "action", "list")
@@ -159,19 +160,23 @@ def queue_main(args: object, cfg: Config) -> int:
 
 # ── reply ───────────────────────────────────────────────
 
-def _load_profile() -> str:
-    path = Path("voice/profile.md")
-    if path.exists():
-        return path.read_text(encoding="utf-8")
-    return "句尾用喵~，女性语气，15-40 字，少用转折词。"
+
+def _reply_persona(cfg):
+    from .cmd_auto import _find_root
+
+    path = Path(cfg.db_path)
+    root = (
+        path.parent.parent
+        if path.is_absolute() and path.parent.name == ".data"
+        else _find_root(Path.cwd())
+    )
+    return Personas(root).get()
 
 
 async def _generate_reply(cfg: Config, incoming: dict, sender_name: str) -> str:
     """调模型生成回复。失败抛 GenerationError。"""
     if not cfg.llm_api_key:
-        raise GenerationError(
-            "没有可用的模型 key。请设置 XHH_LLM_API_KEY 或 DEEPSEEK_API_KEY"
-        )
+        raise GenerationError("没有可用的模型 key。请设置 XHH_LLM_API_KEY 或 DEEPSEEK_API_KEY")
     from xhh_agent.protocol.models import InboxItem
 
     item = InboxItem(
@@ -190,7 +195,8 @@ async def _generate_reply(cfg: Config, incoming: dict, sender_name: str) -> str:
     )
     generator = LlmReplyGenerator(
         client=OpenAICompatClient(base_url=cfg.llm_base_url, api_key=cfg.llm_api_key),
-        profile_text=_load_profile(),
+        profile_text="",
+        persona_snapshot=_reply_persona(cfg),
         model=cfg.llm_model,
     )
     return await generator.generate(item)

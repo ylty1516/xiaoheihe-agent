@@ -20,6 +20,7 @@ from typing import Any
 import aiohttp
 
 from xhh_agent.protocol.models import InboxItem
+from xhh_agent.content.persona import BASE_STYLE, FACT_GUARD, compile_persona, reference
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +68,15 @@ def validate_generated(text: str) -> tuple[bool, str]:
     return True, cleaned
 
 
-def build_prompt(item: InboxItem, profile_text: str) -> str:
+def build_prompt(item: InboxItem, profile_text: str, persona_snapshot=None) -> str:
     """拼 prompt。语境（帖子标题 + 被回复的上文）必须带上，否则只能写空话。"""
     lines = [
         "你在运营一个小黑盒账号，现在要回复一条评论。",
         "",
         "## 账号语气规格",
-        profile_text.strip() or "（无）",
+        compile_persona(persona_snapshot, "comment")
+        if persona_snapshot
+        else (profile_text.strip() + "\n" + BASE_STYLE + "\n" + FACT_GUARD),
         "",
         "## 帖子标题",
         item.link_title or "（未知）",
@@ -106,14 +109,17 @@ class LlmReplyGenerator:
         profile_text: str,
         model: str,
         max_attempts: int = 2,
+        persona_snapshot=None,
     ) -> None:
         self._client = client
         self._profile_text = profile_text
         self._model = model
         self._max_attempts = max(1, max_attempts)
+        self._persona_snapshot = persona_snapshot
+        self.persona_reference = reference(persona_snapshot) if persona_snapshot else None
 
     async def generate(self, item: InboxItem) -> str:
-        prompt = build_prompt(item, self._profile_text)
+        prompt = build_prompt(item, self._profile_text, self._persona_snapshot)
         last_reason = ""
         for attempt in range(self._max_attempts):
             raw = await self._client.complete(prompt=prompt, model=self._model)

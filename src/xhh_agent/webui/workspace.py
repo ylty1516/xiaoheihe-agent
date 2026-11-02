@@ -25,12 +25,14 @@ from .writer import Writer
 from .autopilot import Autopilot
 from .research import fetch_sources
 from .experiments import execute
+from xhh_agent.content.persona import Personas, SCENES, validate, digest, reference
 
 
 def install_workspace_routes(app, root, cfg):
     writer = Writer(root, cfg)
     operations = Operations(root, cfg, writer)
     autopilot = Autopilot(root, writer, operations)
+    personas = Personas(root)
     watcher = None
 
     async def startup(_):
@@ -151,7 +153,98 @@ def install_workspace_routes(app, root, cfg):
 
     @route
     async def generate(request):
-        return web.json_response(await writer.generate(await body(request)))
+        data = await body(request)
+        data.pop("_persona_snapshot", None)
+        return web.json_response(await writer.generate(data))
+
+    @route
+    async def persona_cards(request):
+        if request.method == "GET":
+            if request.query.get("summary") == "1":
+                snapshot = personas.get()
+                return web.json_response(
+                    {
+                        "ok": True,
+                        "active": {**reference(snapshot), "name": snapshot["card"]["name"]},
+                    }
+                )
+            if request.query.get("export"):
+                fmt = request.query["export"]
+                return web.json_response(
+                    {
+                        "ok": True,
+                        "card": personas.export(request.query.get("id"), fmt),
+                        "omitted": ["scenes", "examples.avoid"] if fmt == "astrbot" else [],
+                    }
+                )
+            snapshot = personas.get(request.query.get("id"))
+            return web.json_response(
+                {
+                    "ok": True,
+                    "snapshot": snapshot,
+                    "items": personas.list(),
+                    "revisions": personas.revisions(snapshot["card"]["id"]),
+                    "default_scenes": SCENES,
+                }
+            )
+        data = await body(request)
+        action = data.get("action")
+        if action == "save":
+            result = personas.save(
+                data.get("card"),
+                data.get("expected_revision"),
+                activate=data.get("activate") is True,
+            )
+        elif action == "import":
+            result = personas.import_card(data.get("card"))
+        elif action == "activate":
+            result = personas.activate(data.get("id"))
+        elif action == "rollback":
+            result = personas.rollback(
+                data.get("id"), data.get("revision"), data.get("expected_revision")
+            )
+        else:
+            raise ValueError("人设操作无效")
+        return web.json_response({"ok": True, "snapshot": result})
+
+    @route
+    async def persona_preview(request):
+        data = await body(request)
+        material = data.get("material", "")
+        if not isinstance(material, str) or not 1 <= len(material.strip()) <= 10000:
+            raise ValueError("请提供1至10000字的相同试写材料")
+        card = validate(data.get("card"))
+        edited = {"card": card, "revision": 0, "digest": digest(card)}
+        saved = (
+            personas.get(card["id"])
+            if any(x["id"] == card["id"] for x in personas.list())
+            else personas.get()
+        )
+        results = []
+        scene = data.get("scene", "short")
+        if not isinstance(scene, str) or scene not in SCENES:
+            raise ValueError("请选择有效试写场景")
+        for label, snapshot in (("已保存版本", saved), ("当前编辑版本（未保存）", edited)):
+            result = await writer.generate(
+                {
+                    "mode": "write",
+                    "material": material,
+                    "profile": "short" if scene in {"short", "comment"} else "flexible",
+                    "persona_scene": scene,
+                    "subject": "auto",
+                    "genre": "essay",
+                    "_persona_snapshot": snapshot,
+                }
+            )
+            results.append(
+                {
+                    "label": label,
+                    "text": result["text"],
+                    "persona": reference(snapshot),
+                    "voice_notes": result.get("voice_notes", []),
+                }
+            )
+        return web.json_response({"ok": True, "results": results})
 
     @route
     async def jobs(request):
@@ -277,6 +370,9 @@ def install_workspace_routes(app, root, cfg):
     app.router.add_post("/api/generate", generate)
     app.router.add_get("/api/autopilot", jobs)
     app.router.add_get("/api/desk", desk)
+    app.router.add_get("/api/personas", persona_cards)
+    app.router.add_post("/api/personas", persona_cards)
+    app.router.add_post("/api/personas/preview", persona_preview)
     app.router.add_post("/api/desk", desk)
     app.router.add_post("/api/autopilot", jobs)
     app.router.add_get("/api/comments", queue)

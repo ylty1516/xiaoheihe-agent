@@ -18,6 +18,7 @@ import aiohttp
 
 from xhh_agent.content.editorial import load_history, write_json
 from xhh_agent.content.desk import Desk
+from xhh_agent.content.persona import Personas, reference, voice_notes
 from xhh_agent.content.stats import get_profile
 from xhh_agent.content.topics import pick_topic
 from xhh_agent.content.writing import genre, subject
@@ -69,6 +70,8 @@ class Autopilot:
             raise ValueError("模型调用预算已用完，请调整预算后再继续")
         job["model_calls"] = used + 1
         write_json(self.path(job["id"]), job)
+        if method == "generate":
+            args = ({**args[0], "_persona_snapshot": job.get("persona_snapshot")}, *args[1:])
         result = await getattr(self.writer, method)(*args)
         if self.read(job["id"]).get("control") in {"pause", "cancel"}:
             raise asyncio.CancelledError
@@ -195,6 +198,9 @@ class Autopilot:
             "images": [],
             "file": "",
             "events": [],
+            "persona_snapshot": Personas(self.root).get(
+                body.get("persona_id"), body.get("persona_revision")
+            ),
             "event": str(body.get("event", body.get("query", "未分类")))[:100] or "未分类",
             "max_model_calls": body.get("max_model_calls", 10),
             "max_seconds": body.get("max_seconds", 300),
@@ -549,6 +555,7 @@ class Autopilot:
             "genre": job["genre"],
             "profile": job["request"]["profile"],
             "notes": self.material(job),
+            "persona": reference(job["persona_snapshot"]) if job.get("persona_snapshot") else None,
         }
         result = editor_action(
             self.root,
@@ -639,6 +646,9 @@ class Autopilot:
         if job["state"] in FINAL or job["state"] == "publishing":
             raise ValueError("任务已结束或发布结果待核对，不会再次提交")
         try:
+            if not job.get("persona_snapshot"):
+                job["persona_snapshot"] = Personas(self.root).get()
+                write_json(self.path(job["id"]), job)
             if not job["sources"]:
                 self.update(job, "collecting", "正在读取近期讨论正文并保留来源")
                 await self.collect(job)
@@ -689,6 +699,28 @@ class Autopilot:
                 job["images_inserted"] = True
             self.update(job, "checking", "正在核对来源、内容重复和发布条件")
             draft = read_draft(self.root, job["file"])
+
+            notes = voice_notes(draft["markdown"])
+            job["voice_notes"] = notes
+            if len(notes) >= 2 and not job.get("voice_edited"):
+                self.update(job, "checking", "正在按同一人设修整具体表达", voice_edited=True)
+                edited = await self.ask(
+                    job,
+                    "generate",
+                    {
+                        "mode": "edit",
+                        "title": job["title"],
+                        "markdown": draft["markdown"],
+                        "subject": job["subject"],
+                        "genre": job["genre"],
+                        "profile": job["request"]["profile"],
+                        "material": "仅处理以下表达提醒，保留其余事实、引用和配图：\n"
+                        + json.dumps(notes, ensure_ascii=False),
+                    },
+                )
+                self.save(job, edited["text"])
+                draft = read_draft(self.root, job["file"])
+                job["voice_notes"] = voice_notes(draft["markdown"])
 
             async def check_facts(markdown):
                 return await self.ask(

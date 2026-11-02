@@ -37,6 +37,9 @@ heihe = "xhh_agent.cli.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+xhh_agent = ["webui/static/*.html", "webui/static/*.css", "webui/static/*.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

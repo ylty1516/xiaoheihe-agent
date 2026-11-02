@@ -16,6 +16,7 @@ from xhh_agent.content.diversity import audit, planning_context, rank_cards, reu
 from xhh_agent.content.editorial import load_history, write_json, writing_cards
 from xhh_agent.content.stats import get_profile, summarize
 from xhh_agent.content.writing import GENRES, subject, genre
+from xhh_agent.content.persona import Personas, compile_persona, reference, voice_notes
 
 
 class Writer:
@@ -95,7 +96,7 @@ class Writer:
         if not self.cfg.llm_api_key:
             raise ValueError("请先配置 AI 模型；也可以直接写稿和使用其他功能")
         mode = body.get("mode")
-        if mode not in {"outline", "write", "rewrite", "study"}:
+        if mode not in {"outline", "write", "rewrite", "study", "edit"}:
             raise ValueError("不支持的写作操作")
         material = body.get("material", "")
         text = body.get("markdown", "")
@@ -106,9 +107,23 @@ class Writer:
             raise ValueError("请用一句话说明主题或修改要求，并附上可用资料")
         if mode == "rewrite" and not selected.strip():
             raise ValueError("先在正文中选中要改写的段落")
+        if mode == "edit" and not text.strip():
+            raise ValueError("先提供需要编辑的正文")
         rules = get_profile(body.get("profile", "article"))
         selected_subject = subject(body.get("subject", "auto"))
         selected_genre = genre(body.get("genre", "auto"))
+        persona = None
+        if mode != "study":
+            persona = body.get("_persona_snapshot") or Personas(self.root).get(
+                body.get("persona_id"), body.get("persona_revision")
+            )
+        scene = body.get("persona_scene") or (
+            "tutorial"
+            if selected_genre["id"] == "tutorial"
+            else "short"
+            if rules.id == "short"
+            else "article"
+        )
         purpose = {
             "outline": (
                 "给出可比较的提纲，数量服从本次要求；未指定时通常给三种，素材只够一种就给一种，不为凑数硬编。"
@@ -120,12 +135,15 @@ class Writer:
             ),
             "write": f"按本次要求写小黑盒帖子。{rules.writing_hint}只输出正文，不重复帖子标题。",
             "rewrite": "只改写选中段落，只输出替换文本，保留数值、来源和适用边界，其余正文保持不变。",
+            "edit": "作为文字编辑，按本次要求只修改正文中具体不自然或空泛的表达。保留原有事实、数字、版本、归属、出处和图片链接，不增加经历或事实；正常句子保留，不为改而改。只返回完整正文。",
             "study": (
                 f"分析给定文章的写法，不把所有题材都当游戏攻略。只返回 JSON 对象：article_type 为 {'/'.join(GENRES)} 之一，"
                 "reader_question 为读者问题，argument_order 为论证顺序字符串列表，evidence_usage 为证据用途字符串列表，"
                 "applicable_when 为适用条件，avoid 为不值得模仿的字符串列表。不要复述正文或编造不存在的证据。"
             ),
         }[mode]
+        if mode == "write" and scene == "comment":
+            purpose = "根据给定帖子和评论语境拟一条回复，直接回应对方，不假设缺少的上文，不虚构经历，最多200字。只输出回复正文。"
         if mode == "outline" and rules.id != "article":
             purpose = (
                 "按本次要求给简短提纲，不写正文。数量按要求，未指定时通常给三案；材料只够一案不凑数。"
@@ -205,6 +223,8 @@ class Writer:
             + f"最近已发布正文摘录、习惯统计和候选路线：{json.dumps(recent, ensure_ascii=False)}"
             f"\n可参考的已学写法，按适用条件选择，不复制内容：{json.dumps(learned, ensure_ascii=False)}"
         )
+        if persona:
+            prompt += "\n\n" + compile_persona(persona, scene, examples=mode != "outline")
         if self.lock.locked():
             raise ValueError("已有 AI 任务正在运行，请等本次完成")
         async with self.lock:
@@ -241,4 +261,6 @@ class Writer:
             "stats": summarize(result) if mode == "write" else None,
             "diversity": report,
             "warnings": warnings,
+            "persona": reference(persona) if persona else None,
+            "voice_notes": voice_notes(result) if mode != "study" else [],
         }

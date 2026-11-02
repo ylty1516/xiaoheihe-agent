@@ -23,6 +23,7 @@ from xhh_agent.protocol.session import Session, SessionStore
 from xhh_agent.store.db import Store
 
 from .discovery import Discovery
+from xhh_agent.content.persona import Personas
 
 
 class Operations:
@@ -111,17 +112,15 @@ class Operations:
                     cfg = self.writer.cfg
                     if not cfg.llm_api_key:
                         raise ValueError("请先配置 AI 模型")
-                    profile = self.root / "voice/profile.md"
                     generator = LlmReplyGenerator(
                         client=OpenAICompatClient(
                             base_url=cfg.llm_base_url, api_key=cfg.llm_api_key
                         ),
                         model=cfg.llm_model,
-                        profile_text=profile.read_text(encoding="utf-8")
-                        if profile.exists()
-                        else "直接回应具体内容，不虚构经历",
+                        profile_text="",
+                        persona_snapshot=Personas(self.root).get(),
                     )
-                    return {"ok": True, "text": await generator.generate(item)}
+                    return {"ok": True, "text": await generator.generate(item), "persona": generator.persona_reference}
                 text = body.get("text", "")
                 if body.get("confirm") is not True:
                     raise ValueError("发送评论需要明确确认")

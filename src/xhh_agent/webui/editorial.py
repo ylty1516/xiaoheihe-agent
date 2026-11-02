@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import threading
 import json
 import time
@@ -100,6 +101,23 @@ def _editor_action(root: Path, body: dict) -> dict:
             raise ValueError("稿件信息格式错误")
         if meta is not None:
             previous_meta = read_metadata(path)
+            persona_ref = meta.get("persona", previous_meta.get("persona"))
+            if persona_ref is not None and (
+                not isinstance(persona_ref, dict)
+                or not isinstance(persona_ref.get("id"), str)
+                or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", persona_ref["id"])
+                or type(persona_ref.get("revision")) is not int
+                or persona_ref["revision"] < 0
+                or not isinstance(persona_ref.get("digest"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", persona_ref["digest"])
+            ):
+                raise ValueError("人设版本记录无效")
+            if persona_ref:
+                persona_ref = {
+                    k: persona_ref[k]
+                    for k in ("id", "revision", "digest", "policy_version")
+                    if k in persona_ref
+                }
             selected_subject = subject(meta.get("subject", previous_meta.get("subject", "auto")))
             selected_genre = genre(meta.get("genre", previous_meta.get("genre", "auto")))
             saved_profile = (
@@ -121,6 +139,7 @@ def _editor_action(root: Path, body: dict) -> dict:
                     ],
                     "notes": str(meta.get("notes", ""))[:40_000],
                     "profile": saved_profile,
+                    **({"persona": persona_ref} if persona_ref else {}),
                     **(
                         {"subject": selected_subject["id"]}
                         if "subject" in meta or "subject" in previous_meta
