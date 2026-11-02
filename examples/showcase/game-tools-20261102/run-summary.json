@@ -1,0 +1,54 @@
+{
+  "generated_with": "xiaoheihe-agent 0.6.1 / xhh autopilot",
+  "date": "2026-11-02",
+  "title": "游戏库到串流：3个开源工具怎么分工",
+  "publication": {
+    "state": "published",
+    "link_id": "195802469",
+    "url": "https://xiaoheihe.cn/app/bbs/link/195802469",
+    "author": "galgameの糕手",
+    "topics": [
+      "PC游戏"
+    ],
+    "ownership_verified": true
+  },
+  "persona": {
+    "id": "shirakawa-mio",
+    "revision": 3,
+    "digest": "bafb00506d3a024e06e355044e0e600b1f64a6f094254bb36ee4ce48d2570a11",
+    "policy_version": "1"
+  },
+  "model_calls": 4,
+  "images": 3,
+  "checks": {
+    "ok": true,
+    "blockers": [],
+    "warnings": [],
+    "fact_issues": []
+  },
+  "workflow": [
+    "从项目官方仓库和官网核对资料，整理为materials.txt",
+    "xhh autopilot依据当前人设规划并生成正文和三张配图任务",
+    "agent使用同一冻结人设修整读者口吻、排版和图片锚点",
+    "宿主内置生图，以上一张原创白川澪封面作为角色参考；逐张attach回填",
+    "事实、重复和发布条件检查通过后，在用户明确授权下发布",
+    "读取公开帖子详情核对归属、标题和分区；网页遇验证码，改为截取同一发布稿的实际 WebUI 成稿预览"
+  ],
+  "screenshot_note": "手机尺寸为浏览器响应式视口，不是Android真机；WebUI预览与实际平台页面通过文件名和说明区分。",
+  "screenshots": {
+    "source": "actual_webui_render_of_published_draft",
+    "workspace": "isolated_without_credentials",
+    "desktop": {
+      "width": 1281,
+      "height": 960,
+      "file": "screenshots/webui-desktop.jpg"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "file": "screenshots/webui-mobile.jpg"
+    },
+    "full": "screenshots/webui-full.jpg",
+    "platform_webpage_capture": "not included: interactive CAPTCHA"
+  }
+}

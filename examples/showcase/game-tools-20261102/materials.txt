@@ -1,0 +1,23 @@
+资料核对日期：2026-11-02。以下是从项目官方资料整理的事实，不是本机安装、串流或性能实测。本篇是游戏工具用途精选，不是涨星排行榜。不得编造星数、周增量、帧率、延迟、兼容游戏列表或个人使用经历。
+
+项目1：Playnite
+官方仓库：https://github.com/JosefNemec/Playnite
+官网：https://playnite.link/
+README将它定位为开源游戏库管理器和启动器，支持把Steam、Epic、GOG、EA App、Battle.net等第三方游戏库接入统一界面，并支持模拟器。当前README的系统要求为Windows 10或Windows 11。官网列出主题、扩展和完整手柄支持的全屏模式。仓库许可证为MIT。
+读者场景是：游戏分散在不同商店，想用一个入口整理、浏览和启动。可以说它统一管理入口；不能说合并商店账号、转移所有权或保证不再依赖原平台。只介绍用途，不写安装教程或测试结果。
+
+项目2：Sunshine
+官方仓库：https://github.com/LizardByte/Sunshine
+官方主页：https://app.lizardbyte.dev/Sunshine/
+README将它定位为面向Moonlight的自托管游戏串流主机。官方说明支持AMD、Intel、NVIDIA的硬件编码，也提供软件编码；具体平台支持要以相应文档为准。提供WebUI用于配置与客户端配对。仓库许可证为GPL-3.0。
+读者场景是：游戏在自己的电脑上运行，想把画面传给另一台设备。它承担主机侧工作，需要与接收端配合；不能写成安装以后手机本地运行PC游戏。不要承诺任何显卡都能启用任意编码、固定延迟或固定画质。
+
+项目3：Moonlight
+官方仓库：https://github.com/moonlight-stream/moonlight-qt
+官网：https://moonlight-stream.org/
+moonlight-qt README说明Moonlight PC是用于NVIDIA GameStream和Sunshine的开源PC客户端。仓库介绍的桌面版本覆盖Windows、macOS、Linux和Steam Link。Moonlight项目另有Android和iOS等客户端，移动端不是moonlight-qt这个桌面包。官网提供各平台下载入口并说明可把游戏PC上的游戏串流到受支持设备。moonlight-qt仓库许可证为GPL-3.0。
+读者场景是：在另一台受支持设备上接收主机画面并操作。可以与Sunshine组成主机侧与客户端的分工。应先按接收设备选择对应客户端，再看主机配置；不提供本次未验证的具体设置步骤。
+
+三者关系：Playnite负责游戏库整理和启动入口；Sunshine负责串流主机侧；Moonlight负责接收端。Playnite不是串流必备组件，三者并非必须全装。只想整理电脑游戏库，可先看Playnite；想从另一台设备玩电脑上的游戏，再分别看Sunshine和对应平台的Moonlight。前述最后两句是依据工具定位给出的选择建议，不是安装实测。
+
+可用的配图文字仅限：Playnite／游戏库整理／Windows／MIT；Sunshine／串流主机／GPL-3.0；Moonlight／串流接收端／GPL-3.0。配图为原创AI角色插画与概念图，不是工具运行截图。每张最多项目名加两个短标签，不画假软件UI、不放星数和跑分。

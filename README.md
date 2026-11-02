@@ -25,6 +25,15 @@ xhh publish --md 稿子.md --title "标题" --tag 1 --yes
 
 ## 效果
 
+### 新版工具合集示范
+
+[阅读实际发布帖](https://xiaoheihe.cn/app/bbs/link/195802469) · [正文、配图、人设与生成过程](examples/showcase/game-tools-20261102/README.md)
+
+![白川澪工具合集 WebUI 成稿预览](examples/showcase/game-tools-20261102/screenshots/webui-desktop.jpg)
+
+示范稿使用 v0.6.1 的自动成稿、人设配图和发布检查，经过 agent 审校；三张插画围绕各项目改变构图。
+
+
 用 `xhh publish` 发出来的帖子（App 实拍）：
 
 ![帖子效果](docs/images/post.png)
