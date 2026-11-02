@@ -15,6 +15,7 @@ from xhh_agent.automation.generator import GenerationError
 from xhh_agent.content.diversity import audit
 from xhh_agent.content.editorial import load_history, save_writing_card
 from xhh_agent.content.persona import SCENES, Personas, digest, reference, validate
+from xhh_agent.content.preferences import load_preferences, save_preferences
 from xhh_agent.content.writing import options
 from xhh_agent.protocol.errors import XhhError
 
@@ -78,7 +79,16 @@ def install_workspace_routes(app, root, cfg):
 
     @route
     async def writing_options(_):
-        return web.json_response({"ok": True, **options()})
+        return web.json_response({"ok": True, **options(), "defaults": load_preferences(root)})
+
+    @route
+    async def authoring_settings(request):
+        settings = (
+            load_preferences(root)
+            if request.method == "GET"
+            else save_preferences(root, await body(request))
+        )
+        return web.json_response({"ok": True, **settings})
 
     @route
     async def library(_):
@@ -382,6 +392,8 @@ def install_workspace_routes(app, root, cfg):
     app.router.add_post("/api/generate", generate)
     app.router.add_get("/api/autopilot", jobs)
     app.router.add_get("/api/desk", desk)
+    app.router.add_get("/api/authoring-settings", authoring_settings)
+    app.router.add_post("/api/authoring-settings", authoring_settings)
     app.router.add_get("/api/personas", persona_cards)
     app.router.add_post("/api/personas", persona_cards)
     app.router.add_post("/api/personas/preview", persona_preview)

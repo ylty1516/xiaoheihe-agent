@@ -194,15 +194,18 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
                 {"ok": False, "title": "没有确认", "lines": ["发布要带 confirm: true"]},
                 status=400,
             )
-        topics = body.get("topics") or []
-        if not isinstance(topics, list):
-            topics = [str(topics)]
+        from xhh_agent.content.preferences import validate_topics
+
+        try:
+            topics = validate_topics(body["topics"]) if "topics" in body else []
+        except ValueError as exc:
+            return web.json_response({"ok": False, "title": str(exc), "lines": []}, status=400)
         result = await publish(
             base,
             config,
             file_name=str(body.get("file", "")),
             title=str(body.get("title", "")),
-            topics=[str(t) for t in topics],
+            topics=topics,
             accept_warnings=bool(body.get("accept_warnings")),
             confirm=True,
         )

@@ -205,7 +205,10 @@ async def test_publish_requires_confirm(tmp_path, monkeypatch):
     assert client.calls == []
 
 
-async def test_publish_hits_both_topics_and_records_ledger(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "topics, expected", [(["1", "影之刃零"], ("1", "733575")), (["影之刃零"], ("733575",))]
+)
+async def test_publish_hits_selected_topics_and_records_ledger(tmp_path, monkeypatch, topics, expected):
     root = _root(tmp_path)
     _post_file(root)
     client = _FakeClient()
@@ -216,7 +219,7 @@ async def test_publish_hits_both_topics_and_records_ledger(tmp_path, monkeypatch
         _cfg(root),
         file_name="post-demo.md",
         title="影之刃零这把双钩值得先练",
-        topics=["影之刃零"],
+        topics=topics,
         accept_warnings=True,
         confirm=True,
     )
@@ -227,7 +230,7 @@ async def test_publish_hits_both_topics_and_records_ledger(tmp_path, monkeypatch
     call = client.calls[0]
     assert call["mode"] == "article"
     assert call["draft"] is False
-    assert call["topic_ids"] == ("1", "733575")
+    assert call["topic_ids"] == expected
     assert client.closed is True
 
     from xhh_agent.automation.slots import load_ledger

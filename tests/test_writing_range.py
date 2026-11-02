@@ -75,8 +75,9 @@ def test_subject_and_form_persist_without_replacing_custom_topic(tmp_path, subje
 
 def test_new_draft_is_not_locked_to_a_specific_game(tmp_path):
     new = editor_action(tmp_path, {"action": "new"})
-    assert new["metadata"]["topic"] == GENERAL_TOPIC
-    assert new["metadata"]["subject"] == new["metadata"]["genre"] == "auto"
+    assert new["metadata"]["topics"] == ["GitHub", "AI"]
+    assert new["metadata"]["subject"] == "software"
+    assert new["metadata"]["genre"] == "auto"
 
 
 def test_subject_and_genre_survive_duplicate_and_restore(tmp_path):
@@ -186,7 +187,7 @@ async def test_non_game_web_publish_does_not_force_pc_and_remembers_scope(
     assert history[0]["subject"] == subject and history[0]["genre"] == "tutorial"
 
 
-async def test_game_web_publish_keeps_pc_base(tmp_path, monkeypatch):
+async def test_explicit_web_topics_do_not_add_pc_base(tmp_path, monkeypatch):
     allow_slot(monkeypatch)
     path = create(tmp_path, subject="games")
     client = Client()
@@ -203,7 +204,7 @@ async def test_game_web_publish_keeps_pc_base(tmp_path, monkeypatch):
         accept_warnings=True,
         confirm=True,
     )
-    assert result["ok"] and client.calls[0]["topic_ids"] == ("1", "42")
+    assert result["ok"] and client.calls[0]["topic_ids"] == ("42",)
 
 
 async def test_non_game_cli_uses_explicit_subject_without_pc(tmp_path, monkeypatch):

@@ -246,7 +246,7 @@ async def test_publication_is_not_replayed_after_ack_or_ambiguity(
     job = await svc.run(create(svc, publish=True, confirm=True)["id"])
     assert job["state"] == expected and len(calls) == 1
     assert calls[0]["confirm"] and not calls[0]["accept_warnings"]
-    assert calls[0]["topics"] == ["42"]
+    assert calls[0]["topics"] == ["GitHub", "AI"]
     await service(tmp_path).run(job["id"])
     assert len(calls) == 1
 

@@ -25,7 +25,8 @@ from xhh_agent.config import Config
 from xhh_agent.content import markdown_to_heybox_html
 from xhh_agent.content.stats import check_post, load_profile, summarize
 from xhh_agent.content.writing import GENERAL_TOPIC, load_settings
-from xhh_agent.content.topics import pick_topic
+from xhh_agent.content.topics import pick_topic, topic_key
+from xhh_agent.content.preferences import validate_topics
 from xhh_agent.content.editorial import load_brief, load_history, record_publication, review
 from xhh_agent.content.style import compare_styles
 from .editorial import draft_path, read_metadata
@@ -149,7 +150,7 @@ def preflight(root: Path, file_name: str, title: str) -> dict:
 
 
 async def _resolve_topic_ids(
-    client: ProtocolClient, names: list[str], *, include_pc=True
+    client: ProtocolClient, names: list[str], *, include_pc=True, strict=False
 ) -> list[str]:
     ids = list(DEFAULT_TOPIC_IDS) if include_pc else []
     for name in names:
@@ -159,6 +160,8 @@ async def _resolve_topic_ids(
             continue
         candidates = await client.search_topics(name)
         picked = pick_topic(name, candidates)
+        if strict and topic_key(picked["name"]) != topic_key(name):
+            raise ValueError(f"没有精确找到分区「{name}」，请重新搜索选择")
         topic_id = str(picked["topic_id"])
         if topic_id not in ids:
             ids.append(topic_id)
@@ -237,10 +240,20 @@ async def _publish(
         return {"ok": False, "title": "请先登录账号", "lines": [str(exc)]}
     submitted = False
     try:
+        stored = read_metadata(path)
+        targets = validate_topics(
+            topics or stored.get("topics") or [stored.get("topic") or writing["subject"]["topic"]]
+        )
+        explicit_targets = bool(topics) or "topics" in stored or len(targets) > 1
         topic_ids = await _resolve_topic_ids(
             client,
-            topics or [writing["subject"]["topic"]],
-            include_pc=writing["subject"]["pc"] if writing["explicit"] else True,
+            targets,
+            strict=explicit_targets,
+            include_pc=False
+            if explicit_targets
+            else writing["subject"]["pc"]
+            if writing["explicit"]
+            else True,
         )
         submitted = True
         result = await client.submit_post(

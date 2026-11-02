@@ -25,7 +25,8 @@ from xhh_agent.content.plain import markdown_to_plain
 from xhh_agent.content.inline_images import replace_inline_images
 from xhh_agent.content.stats import check_post, load_profile, summarize
 from xhh_agent.content.editorial import load_brief, record_publication, review
-from xhh_agent.content.topics import pick_topic
+from xhh_agent.content.topics import pick_topic, topic_key
+from xhh_agent.content.preferences import load_preferences
 from xhh_agent.content.writing import load_settings
 from xhh_agent.protocol.cos_upload import CosUploader
 from xhh_agent.protocol.client import ProtocolClient
@@ -46,7 +47,7 @@ def _editorial_root(source: Path) -> Path:
     return Path.cwd()
 
 
-#: 不指定分区时的落点：PC 游戏。
+#: 旧游戏稿兼容的基础分区；新稿使用项目默认设置。
 DEFAULT_TOPIC_ID = "1"
 
 
@@ -88,6 +89,8 @@ async def _resolve_topics(
                 f"找不到分区「{name}」。先在 App 里确认这个分区叫什么，或用 --tag 直接指定 ID。"
             )
         chosen = pick_topic(name, candidates)
+        if topic_key(name) in {"github", "ai"} and topic_key(chosen["name"]) != topic_key(name):
+            raise ValueError(f"没有精确找到分区「{name}」，请重新搜索选择")
         resolved[name] = str(chosen["topic_id"])
 
     ordered: list[str] = []
@@ -110,11 +113,11 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
     title = (getattr(args, "title", None) or "").strip()
 
     # --tag 是裸 ID，--topic 可以是名字。两者都会进分区列表。
-    # 默认落 PC 游戏；游戏帖另外用 --topic 挂上游戏专属分区。
+    # 显式选择只发布到所选分区；未指定时稍后读取稿件或项目默认值。
     tag_ids, topic_names = _split_topic_args(
         list(getattr(args, "tag", None) or []) + list(getattr(args, "topic", None) or [])
     )
-    base_ids = tag_ids or [DEFAULT_TOPIC_ID]
+    base_ids = tag_ids if tag_ids or topic_names else [DEFAULT_TOPIC_ID]
 
     if not title:
         print("参数错误：缺少 --title", file=sys.stderr)
@@ -133,9 +136,19 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
     try:
         writing = load_settings(Path(md_path or html_path), getattr(args, "subject", None))
         if writing["explicit"]:
-            base_ids = tag_ids or ([DEFAULT_TOPIC_ID] if writing["subject"]["pc"] else [])
+            base_ids = tag_ids or (
+                [DEFAULT_TOPIC_ID] if writing["subject"]["pc"] and not topic_names else []
+            )
             if not base_ids and not topic_names:
                 topic_names = [writing["subject"]["topic"]]
+        if not tag_ids and not (getattr(args, "topic", None) or []):
+            stored_topics = writing.get("topics")
+            if stored_topics:
+                base_ids, topic_names = [], stored_topics
+            elif not writing["explicit"]:
+                base_ids, topic_names = [], load_preferences(
+                    _editorial_root(Path(md_path or html_path))
+                )["topics"]
         if html_path:
             source_text = _read_source(html_path)
             print(f"正文：直接读取文件（{len(source_text)} 字符）")
@@ -249,7 +262,7 @@ async def _run(cfg: Config, args: object, draft: bool) -> int:
         print(f"分区：{', '.join(shown_parts)}")
         for name, topic_id in resolved.items():
             print(f"  「{name}」-> {topic_id}")
-        if len(topics) < 2 and (not writing["explicit"] or writing["subject"]["pc"]):
+        if len(topics) < 2 and DEFAULT_TOPIC_ID in topics:
             print(
                 '⚠ 只挂了一个分区。游戏帖建议再加游戏专属分区：--topic "游戏名"',
                 file=sys.stderr,

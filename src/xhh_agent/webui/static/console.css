@@ -105,3 +105,5 @@ html:has(dialog[open]) { overflow:hidden; }
   .dialog-footer { position:sticky; bottom:-18px; z-index:1; background:#152327; padding:12px 0 calc(12px + env(safe-area-inset-bottom)); }
   .dialog-footer button { min-height:44px; }
 }
+
+.topic-selection {display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.topic-chip {display:inline-flex;align-items:center;gap:8px;border:1px solid #47685b;border-radius:20px;padding:7px 13px;background:#203a31;color:#d0ecdc;font-size:13px}#topicPicker .action-strip{margin-top:16px}#btnTopics{max-width:250px;overflow:hidden;text-overflow:ellipsis} @media(max-width:700px){#btnTopics{max-width:165px}.topic-chip{min-height:44px}#topicDialog .dialog-footer{gap:8px}#btnTopicDefault{margin-right:auto}}

@@ -43,6 +43,7 @@ async def run(args, cfg):
                 "images": args.images,
                 "publish": args.publish,
                 "confirm": args.yes,
+                **({"topics": args.topic} if getattr(args, "topic", None) else {}),
             }
         )
         result = await service.run(job["id"])

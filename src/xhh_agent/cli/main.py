@@ -170,6 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
     pilot.add_argument("--root", default="", help="项目根目录")
     pilot.add_argument("--id", default="", help="自动任务 ID")
     pilot.add_argument("--instruction", default="", help="一句话要求；留空从游戏热榜选题")
+    pilot.add_argument("--topic", action="append", default=None, help="指定发布分区，可重复；省略沿用创作默认分区")
     pilot.add_argument("--query", default="", help="指定社区搜索关键词")
     pilot.add_argument("--material-file", default="", help="已有资料 UTF-8 文件，可不连接账号成稿")
     pilot.add_argument("--subject", choices=SUBJECTS, default="auto")

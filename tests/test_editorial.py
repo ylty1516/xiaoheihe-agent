@@ -273,6 +273,9 @@ async def test_cli_only_archives_successful_publications(tmp_path, brief, monkey
     from xhh_agent.protocol.models import PostResult
 
     class Client:
+        async def search_topics(self, name):
+            return [{"name": name, "topic_id": {"GitHub": "572430", "AI": "806933"}.get(name, "1")}]
+
         async def submit_post(self, **kwargs):
             return PostResult(ok=ok, link_id="123" if ok else "", is_draft=draft)
 

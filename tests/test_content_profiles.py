@@ -61,10 +61,16 @@ def test_editor_persists_profile_and_rejects_invalid_choice_before_write(tmp_pat
         },
     )
     assert read_draft(tmp_path, draft["file"])["metadata"]["profile"] == "short"
-    legacy_save = editor_action(tmp_path, {
-        "action": "save", "file": draft["file"], "revision": saved["revision"],
-        "markdown": "用户的短帖", "metadata": {"title": "只更新标题"},
-    })
+    legacy_save = editor_action(
+        tmp_path,
+        {
+            "action": "save",
+            "file": draft["file"],
+            "revision": saved["revision"],
+            "markdown": "用户的短帖",
+            "metadata": {"title": "只更新标题"},
+        },
+    )
     assert read_draft(tmp_path, draft["file"])["metadata"]["profile"] == "short"
     with pytest.raises(ValueError):
         editor_action(
@@ -131,6 +137,9 @@ async def test_cli_saves_incomplete_draft_and_supports_explicit_short_publish(
     calls = []
 
     class Client:
+        async def search_topics(self, name):
+            return [{"name": name, "topic_id": {"GitHub": "572430", "AI": "806933"}.get(name, "1")}]
+
         async def submit_post(self, **kwargs):
             calls.append(kwargs)
             return PostResult(ok=True, link_id="test-1", is_draft=draft)

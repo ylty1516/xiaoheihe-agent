@@ -10,6 +10,7 @@ import time
 import uuid
 from pathlib import Path
 
+from xhh_agent.content.preferences import load_preferences, validate_topics
 from xhh_agent.content.stats import get_profile, load_profile
 from xhh_agent.content.writing import GENERAL_TOPIC, subject, genre
 from xhh_agent.content.editorial import (
@@ -118,6 +119,17 @@ def _editor_action(root: Path, body: dict) -> dict:
                     for k in ("id", "revision", "digest", "policy_version")
                     if k in persona_ref
                 }
+            selected_topics = (
+                validate_topics(meta["topics"])
+                if "topics" in meta
+                else [str(meta["topic"]).strip()]
+                if "topic" in meta
+                else validate_topics(previous_meta["topics"])
+                if "topics" in previous_meta
+                else None
+            )
+            if selected_topics is not None:
+                selected_topics = validate_topics(selected_topics)
             selected_subject = subject(meta.get("subject", previous_meta.get("subject", "auto")))
             selected_genre = genre(meta.get("genre", previous_meta.get("genre", "auto")))
             saved_profile = (
@@ -134,9 +146,10 @@ def _editor_action(root: Path, body: dict) -> dict:
                 path.with_suffix(".meta.json"),
                 {
                     "title": meta.get("title", "")[:100],
-                    "topic": str(meta.get("topic", previous_meta.get("topic", GENERAL_TOPIC)))[
-                        :100
-                    ],
+                    "topic": selected_topics[0]
+                    if selected_topics
+                    else str(meta.get("topic", previous_meta.get("topic", GENERAL_TOPIC)))[:100],
+                    **({"topics": selected_topics} if selected_topics is not None else {}),
                     "notes": str(meta.get("notes", ""))[:40_000],
                     "profile": saved_profile,
                     **({"persona": persona_ref} if persona_ref else {}),
@@ -222,7 +235,13 @@ def manage_draft(root: Path, body: dict) -> dict:
         target.write_text("", encoding="utf-8")
         write_json(
             target.with_suffix(".meta.json"),
-            {"title": "", "topic": GENERAL_TOPIC, "subject": "auto", "genre": "auto"},
+            {
+                "title": "",
+                "topic": load_preferences(root)["topics"][0],
+                "topics": load_preferences(root)["topics"],
+                "subject": "software",
+                "genre": "auto",
+            },
         )
         return read_draft(root, target.name)
     source = draft_path(root, str(body.get("file", "")))

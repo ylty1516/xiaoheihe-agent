@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .preferences import validate_topics
+
 GENERAL_TOPIC = "盒友杂谈"
 SUBJECTS = {
     "auto": {
@@ -99,6 +101,11 @@ def load_settings(path: Path, override_subject=None) -> dict:
         "genre": form,
         "explicit": override_subject is not None or "subject" in data,
         "genre_explicit": "genre" in data,
+        "topics": validate_topics(data["topics"])
+        if "topics" in data
+        else [data["topic"]]
+        if data.get("topic")
+        else None,
     }
 
 

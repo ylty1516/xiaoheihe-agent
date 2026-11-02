@@ -26,6 +26,7 @@ from xhh_agent.content.persona import (
     reference,
     voice_notes,
 )
+from xhh_agent.content.preferences import load_preferences, validate_topics
 from xhh_agent.content.stats import get_profile
 from xhh_agent.content.topics import pick_topic
 from xhh_agent.content.writing import genre, subject
@@ -190,6 +191,21 @@ class Autopilot:
         if not self.writer.public()["configured"]:
             raise ValueError("请先配置 AI 模型，再启动自动成稿")
         request = {k: body.get(k, "").strip() for k in ("instruction", "material", "query")}
+        if not any(
+            (
+                request["instruction"],
+                request["material"],
+                request["query"],
+                body.get("research"),
+                body.get("material_id"),
+            )
+        ) and selected["id"] in {"auto", "software", "ai"}:
+            request["query"] = "GitHub"
+            request["instruction"] = (
+                "从当前GitHub相关项目讨论中找值得介绍的开源工具，核对资料，保留来源；没有本周统计就按用途精选，不编造涨星榜。"
+            )
+            if selected["id"] == "auto":
+                selected = subject("software")
         request.update(
             subject=selected["id"],
             genre=form["id"],
@@ -200,6 +216,9 @@ class Autopilot:
             "id": uuid.uuid4().hex,
             "request": request,
             "publish": wants_publish,
+            "topics": validate_topics(body["topics"])
+            if "topics" in body
+            else load_preferences(self.root)["topics"],
             "created_at": time.time(),
             "sources": [],
             "images": [],
@@ -530,7 +549,7 @@ class Autopilot:
             title=plan["title"],
             subject=selected["id"],
             genre=form["id"],
-            topic=topic,
+            topic=job["topics"][0] if "topics" in job else topic,
             brief=brief if facts else None,
             images=images,
         )
@@ -573,6 +592,7 @@ class Autopilot:
         metadata = {
             "title": job["title"],
             "topic": job["topic"],
+            **({"topics": job["topics"]} if "topics" in job else {}),
             "subject": job["subject"],
             "genre": job["genre"],
             "profile": job["request"]["profile"],
@@ -820,11 +840,15 @@ class Autopilot:
                     else "已保存成稿；发布检查未全部通过，未公开发布",
                 )
                 return job
-            client = self.operations.client()
-            try:
-                chosen = pick_topic(job["topic"], await client.search_topics(job["topic"]))
-            finally:
-                await client.close()
+            if "topics" in job:
+                targets = validate_topics(job["topics"])
+            else:
+                client = self.operations.client()
+                try:
+                    chosen = pick_topic(job["topic"], await client.search_topics(job["topic"]))
+                    targets = [str(chosen["topic_id"])]
+                finally:
+                    await client.close()
             if read_draft(self.root, job["file"])["revision"] != job["revision"]:
                 raise ValueError("发布前稿件已变化，不会自动发布")
             # Persist before transmission. Crash/restart must never replay this step.
@@ -834,7 +858,7 @@ class Autopilot:
                 self.writer.cfg,
                 file_name=job["file"],
                 title=job["title"],
-                topics=[str(chosen["topic_id"])],
+                topics=targets,
                 accept_warnings=False,
                 confirm=True,
             )
