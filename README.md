@@ -1,6 +1,6 @@
 # xiaoheihe-agent
 
-> **v0.7.0** · 2026-11-02 · 小黑盒账号自动化（发帖 / 回评论 / 私信 / 逛帖学习 / 本地面板）
+> **v0.7.1** · 2026-11-02 · 小黑盒账号自动化（发帖 / 回评论 / 私信 / 逛帖学习 / 本地面板）
 
 让 AI agent 用**自己的**小黑盒账号发帖、回评论、回私信 —— 像一个真的在用的号，而不是自动回复机器人。
 
@@ -315,3 +315,5 @@ npm i -g @earendil-works/chord@1.4.0    # 版本跟 pi-coding-agent 对齐
 返回 ready，但后台子进程里请求 401（`Invalid Authorization header`）。所以
 `scripts/duty-workflow.js` 的降级链只保留 `deepseek/*` 两个模型，别把没在子进程里跑通过的
 provider 加进去——加了只会多两次失败。
+
+每日任务的[自动检查与当前阻碍](docs/daily-tasks.md)：已支持后台读取真实进度；App签到和真实对外分享尚未接通。

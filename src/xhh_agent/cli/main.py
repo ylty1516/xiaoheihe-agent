@@ -43,6 +43,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub.add_parser("whoami", help="验证会话是否有效")
     sub.add_parser("doctor", help="自检签名与接口连通性")
+    daily = sub.add_parser("daily", help="查看真实每日任务进度（只读，不代替App签到或分享）")
+    daily.add_argument("--root", default="", help="项目根目录")
+    daily.add_argument("--refresh", action="store_true", help="从平台重新读取任务状态")
+    daily_switch = daily.add_mutually_exclusive_group()
+    daily_switch.add_argument("--enable", action="store_true", help="开启上线及每小时只读检查")
+    daily_switch.add_argument("--disable", action="store_true", help="关闭后台每日任务检查")
 
     p_inbox = sub.add_parser("inbox", help="只读拉取未读消息（不回复）")
     p_inbox.add_argument("-f", "--format", choices=["json", "table"], default="json")
@@ -218,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         "login",
         "whoami",
         "doctor",
+        "daily",
         "inbox",
         "dm",
         "draft",
@@ -247,6 +254,8 @@ def main(argv: list[str] | None = None) -> int:
             from xhh_agent.cli.cmd_whoami import main as handler
         elif args.command == "doctor":
             from xhh_agent.cli.cmd_doctor import main as handler
+        elif args.command == "daily":
+            from xhh_agent.cli.cmd_daily import main as handler
         elif args.command == "dm":
             from xhh_agent.cli.cmd_dm import main as handler
         elif args.command == "draft":

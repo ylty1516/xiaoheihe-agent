@@ -42,6 +42,7 @@ export function createClient({ baseURL, fetchImpl = fetch } = {}) {
     personas: signal => request('/api/personas?list=1', undefined, signal),
     activatePersona: id => request('/api/personas', { action: 'activate', id }),
     preferences: signal => request('/api/authoring-settings', undefined, signal),
+    dailyTasks: signal => request('/api/daily-tasks', undefined, signal),
     savePreferences: topics => request('/api/authoring-settings', { topics }),
     findTopics: query => request('/api/operate', { action: 'find_topics', query }),
     control: (id, action) => request('/api/autopilot', { id, action }),

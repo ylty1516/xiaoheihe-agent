@@ -21,3 +21,5 @@ Windows 可用 `powershell -NoProfile -File scripts/background.ps1 -Action Insta
 本机定时任务需要电脑开机、网络可用、当前用户会话及桌面应用保持运行（可以最小化），不能只留下Python服务后退出Codex。后台进程不会阻止睡眠，睡眠期间无法工作；关机期间无法执行。Windows登录自启后端不等于系统登录前服务，也不保证错过时段补跑。
 
 [官方桌面定时任务说明](https://learn.chatgpt.com/docs/automations?surface=app)明确本地项目需要电脑开机且应用运行。DSH Go连接电脑时也依赖该电脑在线。现有评论扫描和学习任务不由此安装器更改。
+
+每日签到与分享任务的真实进度可开启[每日任务检查](daily-tasks.md)；当前仅支持监测，App签到及真实对外分享尚未接通，不把后台在线当作任务完成。

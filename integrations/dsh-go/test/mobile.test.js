@@ -14,6 +14,18 @@ function host(client) {
 const id = 'a'.repeat(32)
 const scope = { sessionId: 'mobile-session', draft: '写一篇软件教程' }
 
+test('daily progress reflects platform confirmation and cannot hide writing progress',async()=>{
+  let fail=false
+  const {panel}=host({list:async()=>({items:[{id,file:'draft.md'}]}),draft:async()=>({markdown:'正文'}),
+    dailyTasks:async()=>{if(fail)throw new Error('secret');return {state:'checked',complete:false,tasks:[{finished:true},{finished:false}]}}})
+  let data=await snapshot(panel)
+  assert.equal(data.daily,'每日任务 1/2 已完成 · 签到或分享仍待完成')
+  fail=true;data=await snapshot(panel)
+  assert.equal(data.preview,'正文')
+  assert.match(data.daily,/暂未读取/)
+  assert.doesNotMatch(data.daily,/secret|1\/2/)
+})
+
 async function snapshot(panel, context = scope) {
   let close
   const data = await new Promise(resolve => { close = panel.data(context, resolve) })

@@ -16,6 +16,7 @@ from xhh_agent.content.diversity import audit
 from xhh_agent.content.editorial import load_history, save_writing_card
 from xhh_agent.content.persona import SCENES, Personas, digest, reference, validate
 from xhh_agent.content.preferences import load_preferences, save_preferences
+from xhh_agent.automation.daily import DailyTasks
 from xhh_agent.content.writing import options
 from xhh_agent.protocol.errors import XhhError
 
@@ -35,16 +36,22 @@ def install_workspace_routes(app, root, cfg):
     autopilot = Autopilot(root, writer, operations)
     personas = Personas(root)
     watcher = None
+    daily_watcher = None
+    daily_tasks = DailyTasks(root, operations.client)
 
     async def startup(_):
-        nonlocal watcher
+        nonlocal watcher, daily_watcher
         watcher = asyncio.create_task(autopilot.watch())
+        daily_watcher = asyncio.create_task(daily_tasks.watch())
 
     async def cleanup(_):
         if watcher:
             watcher.cancel()
             await asyncio.gather(watcher, return_exceptions=True)
         await autopilot.close()
+        if daily_watcher:
+            daily_watcher.cancel()
+            await asyncio.gather(daily_watcher, return_exceptions=True)
 
     app.on_startup.append(startup)
     app.on_cleanup.append(cleanup)
@@ -80,6 +87,15 @@ def install_workspace_routes(app, root, cfg):
     @route
     async def writing_options(_):
         return web.json_response({"ok": True, **options(), "defaults": load_preferences(root)})
+
+    @route
+    async def daily_status(request):
+        if request.method == "POST":
+            await body(request)
+            report = await daily_tasks.refresh()
+        else:
+            report = daily_tasks.read()
+        return web.json_response({"ok": True, **report})
 
     @route
     async def authoring_settings(request):
@@ -393,6 +409,8 @@ def install_workspace_routes(app, root, cfg):
     app.router.add_get("/api/autopilot", jobs)
     app.router.add_get("/api/desk", desk)
     app.router.add_get("/api/authoring-settings", authoring_settings)
+    app.router.add_get("/api/daily-tasks", daily_status)
+    app.router.add_post("/api/daily-tasks", daily_status)
     app.router.add_post("/api/authoring-settings", authoring_settings)
     app.router.add_get("/api/personas", persona_cards)
     app.router.add_post("/api/personas", persona_cards)

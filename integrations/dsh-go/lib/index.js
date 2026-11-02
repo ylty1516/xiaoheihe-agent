@@ -9,6 +9,7 @@ export const deskView = {
     { type: 'text', text: { $: 'data.persona' }, tone: 'muted' },
     { type: 'text', text: '在聊天输入框写要求，再点「自动成稿」。留空默认找 GitHub 开源项目。', tone: 'muted' },
     { type: 'text', text: { $: 'data.topics' }, tone: 'muted' },
+    { type: 'text', text: { $: 'data.daily' }, tone: 'muted' },
     { type: 'actions', items: [{ label: '创作设置', action: 'open-settings', icon: 'settings' }] },
     { type: 'list', items: { $: 'data.items' } },
     { type: 'text', text: { $: 'data.jobsPage' }, tone: 'muted' },
@@ -160,18 +161,22 @@ export function install(ctx, client) {
             } catch { warnings.push('正文暂时无法读取，稍后刷新。') }
           }
           const optional = await Promise.allSettled([
-            client.materials?.(controller.signal), client.persona?.(controller.signal),
+            client.materials?.(controller.signal), client.persona?.(controller.signal), client.dailyTasks?.(controller.signal),
           ])
           if (closed || state.selected !== selectedId) return
           Object.assign(state, { file, markdown, preview: previewText })
-          const [materialsResult, personaResult] = optional
+          const [materialsResult, personaResult, dailyResult] = optional
+          const daily = dailyResult.value
+          const dailyText = daily?.state === 'checked' && Array.isArray(daily.tasks)
+            ? `每日任务 ${daily.tasks.filter(x=>x.finished).length}/${daily.tasks.length} 已完成`+(daily.complete?'':' · 签到或分享仍待完成')
+            : '每日任务：'+(daily?.message || '暂未读取到进度')
           const materials = (materialsResult.value?.items || []).filter(x=>['note','source','question','experiment'].includes(x.kind)).slice(0,5)
           if (materialsResult.status === 'rejected') warnings.push('素材暂时无法读取。')
           const active = personaResult.value?.active
           const persona = active ? '当前人设：' + clip(active.name, 80) + ' · 修订 ' + active.revision : '当前主机暂未提供人设信息'
           const preview = pages(state.preview)
           state.page = Math.min(state.page, preview.length - 1)
-          emit({ persona, topics:topicSettings.summary(scope), materials: materials.map(x=>({title:clip(x.event,80),subtitle:clip(x.text,100),action:{id:'use-material',args:{id:x.id}}})),
+          emit({ persona, daily:dailyText, topics:topicSettings.summary(scope), materials: materials.map(x=>({title:clip(x.event,80),subtitle:clip(x.text,100),action:{id:'use-material',args:{id:x.id}}})),
             status: (rows.length || selected ? '任务在主机后台执行，关闭面板后继续。' : '还没有创作任务。') + warnings.join(''),
             jobsPage: `任务第 ${state.jobsPage + 1} / ${Math.max(1, Math.ceil(rows.length / JOBS_PER_PAGE))} 组 · 最近 ${rows.length} 项`,
             selected: selected ? clip((selected.title || '自动选题') + ' · ' + stateLabel(selected.state) + '\n' + (selected.message || ''), 500) : '',
@@ -184,7 +189,7 @@ export function install(ctx, client) {
         } catch {
           if (!closed) {
             Object.assign(stateFor(scope), { file: '', markdown: '', preview: '' })
-            emit({ status: '未连接。请在当前 DSH 主机启动 xhh auto --no-open；服务恢复后会自动重连。', items: [], materials: [], controls: [], persona: '', topics:topicSettings.summary(scope), selected: '', detail: '', jobsPage: '', previewPage: '', preview: '' })
+            emit({ status: '未连接。请在当前 DSH 主机启动 xhh auto --no-open；服务恢复后会自动重连。', items: [], materials: [], controls: [], persona: '', daily: '', topics:topicSettings.summary(scope), selected: '', detail: '', jobsPage: '', previewPage: '', preview: '' })
           }
         } finally { if (!closed) { timer = setTimeout(poll, 4000); timer.unref?.() } }
       }

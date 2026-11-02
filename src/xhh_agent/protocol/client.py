@@ -452,6 +452,17 @@ class ProtocolClient:
 
     # ── 接口 ────────────────────────────────────────────────
 
+    async def fetch_daily_tasks(self) -> dict[str, Any]:
+        """Read real task state; this never reports task completion."""
+        data = await self._request_json("GET", self.build_api_url("/task/list_v2/"))
+        result = data.get("result")
+        if data.get("status") != "ok" or not isinstance(result, dict):
+            raise SchemaChanged("每日任务接口未成功返回任务列表")
+        user = result.get("user")
+        if not isinstance(user, dict) or str(user.get("userid", "")) != self.heybox_id:
+            raise SchemaChanged("每日任务账号不匹配，未执行任何任务")
+        return result
+
     async def whoami(self) -> Account:
         """用消息接口验证会话可用（能拿到 ``result.messages``）。
 
