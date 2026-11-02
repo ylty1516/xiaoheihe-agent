@@ -1,0 +1,23 @@
+[
+  {
+    "project": "Playnite",
+    "url": "https://playnite.link/",
+    "captured_on": "2026-11-02",
+    "image": "assets/playnite-website.jpg",
+    "description": "通过浏览器截取官网实际首页，非AI生成、非本机安装实测截图。"
+  },
+  {
+    "project": "Sunshine",
+    "url": "https://app.lizardbyte.dev/Sunshine/",
+    "captured_on": "2026-11-02",
+    "image": "assets/sunshine-website.jpg",
+    "description": "通过浏览器截取官网实际首页，非AI生成、非本机安装实测截图。"
+  },
+  {
+    "project": "Moonlight",
+    "url": "https://moonlight-stream.org/",
+    "captured_on": "2026-11-02",
+    "image": "assets/moonlight-website.jpg",
+    "description": "通过浏览器截取官网实际首页，非AI生成、非本机安装实测截图。"
+  }
+]

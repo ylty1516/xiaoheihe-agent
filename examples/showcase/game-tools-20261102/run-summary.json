@@ -19,7 +19,7 @@
     "policy_version": "1"
   },
   "model_calls": 4,
-  "images": 3,
+  "images": 6,
   "checks": {
     "ok": true,
     "blockers": [],
@@ -32,7 +32,8 @@
     "agent使用同一冻结人设修整读者口吻、排版和图片锚点",
     "宿主内置生图，以上一张原创白川澪封面作为角色参考；逐张attach回填",
     "事实、重复和发布条件检查通过后，在用户明确授权下发布",
-    "读取公开帖子详情核对归属、标题和分区；网页遇验证码，改为截取同一发布稿的实际 WebUI 成稿预览"
+    "读取公开帖子详情核对归属、标题和分区；网页遇验证码，改为截取同一发布稿的实际 WebUI 成稿预览",
+    "按用户反馈编辑同一帖子，加入二级粗体标题、分隔、五处emoji和三张官网截图；读取线上正文确认4个h2、6张内嵌图及5处emoji。"
   ],
   "screenshot_note": "手机尺寸为浏览器响应式视口，不是Android真机；WebUI预览与实际平台页面通过文件名和说明区分。",
   "screenshots": {
@@ -40,15 +41,37 @@
     "workspace": "isolated_without_credentials",
     "desktop": {
       "width": 1281,
-      "height": 960,
-      "file": "screenshots/webui-desktop.jpg"
+      "height": 721,
+      "file": "screenshots/webui-desktop.jpg",
+      "image_pixels": {
+        "width": 1266,
+        "height": 712
+      }
     },
     "mobile": {
       "width": 390,
       "height": 844,
-      "file": "screenshots/webui-mobile.jpg"
+      "file": "screenshots/webui-mobile.jpg",
+      "image_pixels": {
+        "width": 376,
+        "height": 844
+      }
     },
     "full": "screenshots/webui-full.jpg",
     "platform_webpage_capture": "not included: interactive CAPTCHA"
+  },
+  "image_breakdown": {
+    "generated_character_illustrations": 3,
+    "official_website_screenshots": 3
+  },
+  "revision": 2,
+  "revision_verification": {
+    "same_link_id": "195802469",
+    "current_account_ownership": true,
+    "remote_matches_revised_layout": true,
+    "h2": 4,
+    "images": 6,
+    "emoji_marks": 5,
+    "dividers": 5
   }
 }

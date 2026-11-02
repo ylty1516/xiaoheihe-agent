@@ -1,0 +1,38 @@
+{
+  "reader": "想整理游戏库、了解自托管游戏串流分工的游戏玩家",
+  "question": "想统一整理多平台游戏库，或把电脑游戏串流到另一台设备，这三个工具各自负责什么、该怎么选？",
+  "conclusion": "若只想把分散在各商店的游戏收进一个入口，可先看Playnite；若想把本机运行的游戏画面传到另一台受支持设备，再分别看Sunshine主机侧与对应平台的Moonlight接收端。三者并非必须全装，Playnite也不是串流必备组件。",
+  "new_information": "按官方资料厘清三工具分工：Playnite是开源游戏库管理器与启动器，支持接入Steam、Epic、GOG、EA App、Battle.net等第三方库及模拟器，当前README要求Windows 10或11，MIT许可；Sunshine是面向Moonlight的自托管串流主机，支持AMD、Intel、NVIDIA硬件编码并提供软件编码，带WebUI配对，GPL-3.0；moonlight-qt是用于NVIDIA GameStream和Sunshine的开源PC客户端，桌面版覆盖Windows、macOS、Linux和Steam Link，移动端另有Android/iOS客户端，GPL-3.0。",
+  "structure": "roundup",
+  "exclude": [
+    "不比较实测性能、帧率或延迟",
+    "不写未经验证的具体安装步骤",
+    "不把官网截图说成本篇本机实测"
+  ],
+  "facts": [
+    {
+      "claim": "Playnite是统一第三方游戏库的开源管理器和启动器，README要求Windows 10或11，许可为MIT。",
+      "source": "https://github.com/JosefNemec/Playnite"
+    },
+    {
+      "claim": "Playnite官网展示真实界面，并介绍主题、扩展和手柄全屏模式。",
+      "source": "https://playnite.link/"
+    },
+    {
+      "claim": "Sunshine是面向Moonlight的自托管串流主机，提供硬件及软件编码与WebUI配对，仓库许可为GPL-3.0。",
+      "source": "https://github.com/LizardByte/Sunshine"
+    },
+    {
+      "claim": "Sunshine官网首页介绍其串流主机定位及对应客户端。",
+      "source": "https://app.lizardbyte.dev/Sunshine/"
+    },
+    {
+      "claim": "Moonlight PC是GameStream和Sunshine客户端，桌面项目与Android、iOS移动客户端分开，moonlight-qt许可为GPL-3.0。",
+      "source": "https://github.com/moonlight-stream/moonlight-qt"
+    },
+    {
+      "claim": "Moonlight官网提供不同平台客户端入口并说明游戏从运行游戏的电脑串流到受支持接收设备。",
+      "source": "https://moonlight-stream.org/"
+    }
+  ]
+}
