@@ -1,6 +1,5 @@
 """Shared expression settings, immutable snapshots and explicit local management."""
 
-import asyncio
 import json
 from dataclasses import replace
 from types import SimpleNamespace
@@ -9,7 +8,14 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from xhh_agent.config import load_config
-from xhh_agent.content.persona import Personas, compile_persona, digest, validate, voice_notes
+from xhh_agent.content.persona import (
+    DEFAULT_PERSONA,
+    Personas,
+    compile_persona,
+    digest,
+    validate,
+    voice_notes,
+)
 from xhh_agent.webui.writer import Writer
 
 
@@ -31,7 +37,7 @@ def test_legacy_is_read_without_writing_and_preserved_in_first_save(tmp_path):
     profile.parent.mkdir()
     profile.write_text("私人身份与原有偏好", encoding="utf-8")
     store = Personas(tmp_path)
-    snapshot = store.get()
+    snapshot = store.get("legacy")
     assert snapshot["revision"] == 0 and "私人身份" in snapshot["card"]["system_prompt"]
     assert not store.path.exists()
     modified = {**snapshot["card"], "system_prompt": "新表达"}
@@ -67,7 +73,8 @@ def test_astrbot_roundtrip_and_native_extensions(tmp_path):
         }
     )
     assert set(imported["ignored_fields"]) == {"tools", "skills", "api_key"}
-    assert store.active_id() == "legacy"
+    assert store.active_id() == DEFAULT_PERSONA
+    assert store.revisions(DEFAULT_PERSONA)[0]["revision"] == 0
     assert "must-not-store" not in json.dumps(store.export("test"), ensure_ascii=False)
     assert store.export("test", "astrbot")["begin_dialogs"] == ["材料一", "文章一"]
     duplicate = store.import_card(store.export("test", "astrbot"))
@@ -115,8 +122,9 @@ def test_scene_constraints_and_specific_advice(tmp_path):
 
 
 async def test_writer_and_comment_use_same_card_version(tmp_path, monkeypatch):
-    from xhh_agent.automation.generator import LlmReplyGenerator
     from test_generator import _item
+
+    from xhh_agent.automation.generator import LlmReplyGenerator
 
     store = Personas(tmp_path)
     snapshot = store.save(card(), 0, activate=True)
@@ -145,7 +153,9 @@ async def test_writer_and_comment_use_same_card_version(tmp_path, monkeypatch):
 
 
 async def test_autopilot_freezes_card_and_records_it_on_draft(tmp_path):
-    from test_auto_authoring import Writer as FakeWriter, Client, create
+    from test_auto_authoring import Client, create
+    from test_auto_authoring import Writer as FakeWriter
+
     from xhh_agent.webui.autopilot import Autopilot
     from xhh_agent.webui.editorial import read_draft
 
@@ -168,8 +178,8 @@ async def test_autopilot_freezes_card_and_records_it_on_draft(tmp_path):
 
 
 async def test_http_import_preview_export_and_origin_guard(tmp_path, monkeypatch):
+    from xhh_agent.webui import workspace
     from xhh_agent.webui.app import create_app
-    import xhh_agent.webui.workspace as workspace
 
     seen = []
 
@@ -183,8 +193,13 @@ async def test_http_import_preview_export_and_origin_guard(tmp_path, monkeypatch
     await client.start_server()
     try:
         response = await client.get("/api/personas?summary=1")
-        assert (await response.json())["active"]["id"] == "legacy"
+        assert (await response.json())["active"]["id"] == DEFAULT_PERSONA
         assert not (tmp_path / ".data/personas.sqlite").exists()
+        response = await client.get("/api/personas?list=1")
+        listing = await response.json()
+        assert listing["active"]["id"] == DEFAULT_PERSONA
+        assert any(item["id"] == DEFAULT_PERSONA and item["active"] for item in listing["items"])
+        assert "system_prompt" not in json.dumps(listing)
         response = await client.post(
             "/api/personas",
             json={"action": "import", "card": {"system_prompt": "导入的人设", "begin_dialogs": []}},
@@ -208,7 +223,7 @@ async def test_http_import_preview_export_and_origin_guard(tmp_path, monkeypatch
         assert seen[0]["material"] == seen[1]["material"]
         assert seen[0]["_persona_snapshot"]["card"]["system_prompt"] == "导入的人设"
         assert seen[1]["_persona_snapshot"]["card"]["system_prompt"] == "未保存的编辑版"
-        assert Personas(tmp_path).get()["card"]["id"] == "legacy"
+        assert Personas(tmp_path).get()["card"]["id"] == DEFAULT_PERSONA
         assert not list(tmp_path.rglob("post-*.md"))
         response = await client.post(
             "/api/generate", json={"_persona_snapshot": {"card": "forged"}}
@@ -236,3 +251,34 @@ def test_cli_reads_same_persona(tmp_path, capsys):
     result = json.loads(capsys.readouterr().out)
     assert result["persona"]["digest"] == snapshot["digest"]
     assert "环境、操作和结果判据" in result["prompt"]
+
+
+def test_builtin_default_and_example_stay_identical_and_read_only(tmp_path):
+    from pathlib import Path
+
+    store = Personas(tmp_path)
+    snapshot = store.get()
+    example = json.loads(
+        (Path(__file__).parents[1] / "examples/personas/shirakawa-mio.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert snapshot["card"] == validate(example)
+    assert snapshot["card"]["id"] == DEFAULT_PERSONA
+    assert snapshot["digest"] == digest(example)
+    assert len(snapshot["card"]["examples"]) == 8
+    assert {item["id"] for item in store.list()} == {DEFAULT_PERSONA, "legacy"}
+    assert store.revisions(DEFAULT_PERSONA)[0]["id"] == DEFAULT_PERSONA
+    assert not store.path.exists()
+
+
+def test_builtin_edit_archives_original_and_explicit_selection_survives(tmp_path):
+    store = Personas(tmp_path)
+    original = store.get()
+    saved = store.save({**original["card"], "system_prompt": "自定义调整"}, 0)
+    assert saved["revision"] == 1
+    assert store.get(DEFAULT_PERSONA, 0) == original
+    assert store.rollback(DEFAULT_PERSONA, 0, 1)["card"] == original["card"]
+    store.activate("legacy")
+    assert Personas(tmp_path).active_id() == "legacy"
+    assert Personas(tmp_path).get()["card"]["id"] == "legacy"

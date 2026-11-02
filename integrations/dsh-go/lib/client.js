@@ -39,6 +39,8 @@ export function createClient({ baseURL, fetchImpl = fetch } = {}) {
     capture: text => request('/api/desk', { kind: 'note', event: '手机随记', text }),
     materials: signal => request('/api/desk', undefined, signal),
     persona: signal => request('/api/personas?summary=1', undefined, signal),
+    personas: signal => request('/api/personas?list=1', undefined, signal),
+    activatePersona: id => request('/api/personas', { action: 'activate', id }),
     control: (id, action) => request('/api/autopilot', { id, action }),
     fromMaterial: id => request('/api/autopilot', { material_id: id, profile: 'flexible', publish: false, images: 'auto' }),
     job: (id, signal) => request('/api/autopilot?id=' + encodeURIComponent(id), undefined, signal),

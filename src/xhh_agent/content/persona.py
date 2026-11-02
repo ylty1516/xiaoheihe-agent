@@ -14,8 +14,10 @@ import sqlite3
 import time
 import uuid
 from contextlib import contextmanager
+from pathlib import Path
 
 POLICY_VERSION = "1"
+DEFAULT_PERSONA = "shirakawa-mio"
 SCENES = {
     "article": "文章按具体内容展开，保留账号语气。旧设定中针对评论的短句、不列点、少转折只用于评论；文章正常使用连接词。口头禅不设最低次数，不固定开场、段数和收尾。",
     "short": "短帖直接说有用的内容，信息说完就停，不必补总结或互动问题。",
@@ -191,12 +193,24 @@ class Personas:
             "policy_version": POLICY_VERSION,
         }
 
+    def builtin(self):
+        path = Path(__file__).with_name("persona_cards") / (DEFAULT_PERSONA + ".json")
+        card = validate(json.loads(path.read_text(encoding="utf-8")))
+        if card["id"] != DEFAULT_PERSONA:
+            raise ValueError("内置人设编号不匹配")
+        return {
+            "card": card,
+            "revision": 0,
+            "digest": digest(card),
+            "policy_version": POLICY_VERSION,
+        }
+
     def active_id(self):
         if not self.path.exists():
-            return "legacy"
+            return DEFAULT_PERSONA
         with self.db() as db:
             row = db.execute("SELECT value FROM settings WHERE key='active'").fetchone()
-        return row["value"] if row else "legacy"
+        return row["value"] if row else DEFAULT_PERSONA
 
     def get(self, card_id=None, revision=None):
         if card_id is None or card_id == "":
@@ -224,10 +238,12 @@ class Personas:
             }
         if card_id == "legacy" and revision in (None, 0):
             return self.legacy()
+        if card_id == DEFAULT_PERSONA and revision in (None, 0):
+            return self.builtin()
         raise ValueError("找不到这张人设卡或指定版本")
 
     def list(self):
-        ids = {"legacy"}
+        ids = {"legacy", DEFAULT_PERSONA}
         if self.path.exists():
             with self.db() as db:
                 ids.update(row[0] for row in db.execute("SELECT DISTINCT id FROM revisions"))
@@ -252,12 +268,12 @@ class Personas:
             current = row[0] or 0
             if current != expected_revision:
                 raise ValueError("人设已被其他窗口修改，请重新加载后合并")
-            if row[0] is None and card["id"] == "legacy":
-                original = self.legacy()
+            if row[0] is None and card["id"] in {"legacy", DEFAULT_PERSONA}:
+                original = self.legacy() if card["id"] == "legacy" else self.builtin()
                 db.execute(
                     "INSERT INTO revisions VALUES (?,?,?,?,?)",
                     (
-                        "legacy",
+                        card["id"],
                         0,
                         json.dumps(original["card"], ensure_ascii=False),
                         original["digest"],
@@ -286,17 +302,18 @@ class Personas:
         return self.get(card_id)
 
     def revisions(self, card_id):
-        self.get(card_id)
+        snapshot = self.get(card_id)
         if not self.path.exists():
-            return [reference(self.legacy())]
+            return [reference(snapshot)]
         with self.db() as db:
-            return [
+            rows = [
                 dict(x)
                 for x in db.execute(
                     "SELECT revision,digest,created FROM revisions WHERE id=? ORDER BY revision DESC LIMIT 50",
                     (card_id,),
                 )
             ]
+        return rows or [reference(snapshot)]
 
     def rollback(self, card_id, revision, expected_revision):
         return self.save(self.get(card_id, revision)["card"], expected_revision)

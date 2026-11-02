@@ -2,16 +2,18 @@
 
 适配 [ccch1mneyyy/dsh-Go](https://github.com/ccch1mneyyy/dsh-Go)，参照其原生插件规范，基准提交 `d44f9607b69bc284a733e554805f283b30471e7a`。
 
-手机输入框上方有「自动成稿」「保存素材」两个胶囊。写一句要求后点自动成稿；留空则从游戏热榜选题。也可把输入框随记归档，稍后点素材直接成稿。创作台可从「全部功能」或对话插件面板打开，自动刷新任务，支持预览、复制、暂停，或交给聊天助手继续配图和处理。
+手机输入框上方有「自动成稿」「保存素材」两个胶囊。写一句要求后点自动成稿；留空则从游戏热榜选题。也可把输入框随记归档，稍后点素材直接成稿。创作台可从「全部功能」或对话插件面板打开，自动刷新任务，支持预览、复制、暂停、继续、取消及切换人设，或交给聊天助手继续配图和处理。
 
 按钮默认只生成本地稿，不把点按误当公开发布授权。自动发布仍按已有账号约定由助手执行 `xhh autopilot ... --publish --yes`，任务检查和结果不明禁止重发的逻辑共用 Python 后端。
+
+适配器版本 **0.2.0**，配合 Python 后端 **0.6.0**。人设列表只显示名称与修订，不下发私人描述；切换影响后续任务。继续任务不会为仍在运行的任务重复启动，结果待核对的任务仍不可重发。
 
 ## 在手机本机引擎安装
 
 在 DSH Go 的 Linux 环境内执行，Python 至少 3.11、Node 至少 22.19；需要 Git、pip、venv。若 Ubuntu 缺少 venv，先安装发行版的 `python3-venv` 软件包。
 
 ```sh
-git clone --branch feat/dsh-go-mobile https://github.com/ylty1516/xiaoheihe-agent.git
+git clone --branch master https://github.com/ylty1516/xiaoheihe-agent.git
 cd xiaoheihe-agent
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
@@ -20,6 +22,8 @@ dsh plugin --profile web add "$PWD/integrations/dsh-go"
 ```
 
 保留最后的服务进程；也可使用当前主机已有的进程管理器运行。模型沿用项目本机配置，或在启动服务前设置 `XHH_LLM_BASE_URL`、`XHH_LLM_MODEL`、`XHH_LLM_API_KEY`。DSH 聊天模型的密钥不会被插件自动读取。发起社区查询前先 `xhh login`；已有资料成稿可以不登录。账号与密钥留在当前主机，不写进插件清单。
+
+已有安装：`git pull --ff-only` 后重新执行 `.venv/bin/python -m pip install -e .`，再重启小黑盒服务和 DSH 引擎。
 
 项目放在哪里都可以，安装后的插件链接不能删除。更新 `lib/` 代码后按 DSH Go 说明重启引擎；Python 代码更新后重启小黑盒服务。
 

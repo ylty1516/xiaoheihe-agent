@@ -1,25 +1,80 @@
 {
   "name": "local-xiaoheihe",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
   "description": "小黑盒自动创作的 DSH Go 原生手机入口",
   "license": "MIT",
-  "scripts": { "test": "node --test test/*.test.js" },
-  "engines": { "node": ">=22.19", "dsh": ">=0.2.1-rc.2 <0.3.0-0" },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.19",
+    "dsh": ">=0.2.1-rc.2 <0.3.0-0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "dshGo": {
     "v": 1,
-    "title": { "zh": "小黑盒创作", "en": "Heybox" },
+    "title": {
+      "zh": "小黑盒创作",
+      "en": "Heybox"
+    },
     "icon": "write",
-    "wants": ["draft"],
+    "wants": [
+      "draft"
+    ],
     "contributes": {
       "composer.actions": [
-        { "id": "write-post", "label": { "zh": "自动成稿", "en": "Write" }, "icon": "write" },
-        { "id": "open-desk", "label": { "zh": "保存素材", "en": "Save note" }, "icon": "note" }
+        {
+          "id": "write-post",
+          "label": {
+            "zh": "自动成稿",
+            "en": "Write"
+          },
+          "icon": "write"
+        },
+        {
+          "id": "open-desk",
+          "label": {
+            "zh": "保存素材",
+            "en": "Save note"
+          },
+          "icon": "note"
+        }
       ],
-      "panels": [{ "id": "desk", "title": { "zh": "小黑盒创作台", "en": "Heybox desk" }, "icon": "write", "placement": ["session.tab", "features", "chat.panel"] }]
+      "panels": [
+        {
+          "id": "desk",
+          "title": {
+            "zh": "小黑盒创作台",
+            "en": "Heybox desk"
+          },
+          "icon": "write",
+          "placement": [
+            "session.tab",
+            "features",
+            "chat.panel"
+          ]
+        },
+        {
+          "id": "personas",
+          "title": {
+            "zh": "人设选择",
+            "en": "Personas"
+          },
+          "icon": "chat",
+          "placement": [
+            "session.tab",
+            "features",
+            "chat.panel"
+          ]
+        }
+      ]
     }
   }
 }

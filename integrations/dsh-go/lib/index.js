@@ -15,11 +15,44 @@ export const deskView = {
       { label: '交给助手', action: 'continue-agent', icon: 'chat' },
       { label: '暂停任务', action: 'pause-job', icon: 'clock' },
     ] },
+    { type: 'actions', items: [
+      { label: '继续任务', action: 'resume-job', icon: 'play' },
+      { label: '取消任务', action: 'cancel-job', icon: 'remove' },
+      { label: '切换人设', action: 'open-personas', icon: 'chat' },
+    ] },
   ],
 }
 
 // Export the factory for tests; production uses the same loopback client.
 export function install(ctx, client) {
+  ctx.dshGo.panel('personas', {
+    view: {type:'stack',title:'人设选择',children:[
+      {type:'text',text:{$:'data.status'}},
+      {type:'text',text:'切换只影响后续生成，运行中的任务保持原版本。',tone:'muted'},
+      {type:'list',items:{$:'data.items'}},
+      {type:'actions',items:[{label:'刷新列表',action:'reload-personas',icon:'refresh'}]},
+    ]},
+    data: (_scope,emit) => {
+      const controller=new AbortController();let closed=false;
+      void (async()=>{try{
+        const data=await client.personas(controller.signal);
+        if(!closed)emit({status:'当前人设：'+data.active.name,items:data.items.slice(0,30).map(item=>({
+          title:item.name,subtitle:(item.active?'当前使用 · ':'点击使用 · ')+'修订 '+item.revision,
+          action:{id:'activate-persona',args:{id:item.id}},
+        }))});
+      }catch{if(!closed)emit({status:'无法读取人设列表，请确认后端已更新并启动。',items:[]})}})();
+      return ()=>{closed=true;controller.abort()};
+    },
+    actions:{
+      'reload-personas':()=>({refresh:true}),
+      'activate-persona':async(_scope,event)=>{
+        const id=event.value?.id;
+        if(typeof id!=='string'||!/^[a-zA-Z0-9_-]{1,64}$/.test(id))return {toast:'人设编号无效'};
+        try{await client.activatePersona(id);return {refresh:true,toast:'已切换，后续生成使用此人设'}}
+        catch{return {toast:'切换未确认，请刷新列表核对'}}
+      },
+    },
+  });
   ctx.dshGo.on('open-desk', async scope => {
     const text = scope.draft?.trim()
     if (!text || text.length > 30000) return { toast: '先在输入框写下要保存的素材' }
@@ -58,7 +91,7 @@ export function install(ctx, client) {
           const rows = (data.items || []).slice(0, 8)
           if (!state.selected && rows[0]) state.selected = rows[0].id
           const selected = rows.find(x => x.id === state.selected)
-          if (!selected) Object.assign(state, { file: '', markdown: '', preview: '' })
+          if (!selected) Object.assign(state, { selected:'', file: '', markdown: '', preview: '' })
           if (selected?.file) {
             const draft = await client.draft(selected.file, controller.signal)
             state.file = selected.file; state.markdown = draft.markdown
@@ -78,6 +111,17 @@ export function install(ctx, client) {
       return () => { closed = true; clearTimeout(timer); controller.abort() }
     },
     actions: {
+      'open-personas':()=>({open:'panel:personas'}),
+      'resume-job':async scope=>{
+        const id=stateFor(scope).selected;if(!id)return {toast:'先选择一个任务'};
+        try{await client.control(id,'resume');return {refresh:true}}
+        catch{return {toast:'无法继续，请检查任务是否已结束或结果待核对'}}
+      },
+      'cancel-job':async scope=>{
+        const id=stateFor(scope).selected;if(!id)return {toast:'先选择一个任务'};
+        try{await client.control(id,'cancel');return {refresh:true}}
+        catch{return {toast:'无法取消，任务可能已完成或正在提交'}}
+      },
       'pause-job': async scope => {
         const id=stateFor(scope).selected
         if(!id)return {toast:'先选择一个任务'}

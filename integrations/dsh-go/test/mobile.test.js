@@ -7,7 +7,7 @@ import { createServer } from 'node:http'
 function host(client) {
   const handlers = {}, panels = {}
   install({ dshGo: { on: (id, fn) => { handlers[id] = fn }, panel: (id, spec) => { panels[id] = spec } } }, client)
-  return { handlers, panel: panels.desk }
+  return { handlers, panel: panels.desk, personas: panels.personas }
 }
 const id = 'a'.repeat(32)
 const scope = { sessionId: 'mobile-session', draft: '写一篇软件教程' }
@@ -134,3 +134,41 @@ test('adapter communicates with a real loopback HTTP server', async () => {
     await new Promise(resolve => server.close(resolve))
   }
 })
+
+
+test('phone persona panel reads metadata and changes only on explicit tap', async () => {
+  const calls=[];let notify,state;
+  const ready=new Promise(resolve=>{notify=resolve});
+  const {personas,panel}=host({
+    personas:async()=>({active:{name:'白川澪'},items:[{id:'shirakawa-mio',name:'白川澪',revision:0,active:true}]}),
+    activatePersona:async id=>calls.push(id),
+  });
+  assert.deepEqual(panel.actions['open-personas'](),{open:'panel:personas'});
+  const close=personas.data(scope,data=>{state=data;notify()});await ready;close();
+  assert.match(state.status,/白川澪/);assert.deepEqual(calls,[]);
+  assert.deepEqual(state.items[0].action,{id:'activate-persona',args:{id:'shirakawa-mio'}});
+  assert.equal((await personas.actions['activate-persona'](scope,{value:{id:'shirakawa-mio'}})).refresh,true);
+  assert.deepEqual(calls,['shirakawa-mio']);
+  assert.match((await personas.actions['activate-persona'](scope,{value:{id:'../bad'}})).toast,/无效/);
+  assert.equal(calls.length,1);
+});
+
+test('closing persona panel aborts request and suppresses late emission', async () => {
+  let finish,signal,emitted=false;
+  const {personas}=host({personas:s=>{signal=s;return new Promise(resolve=>{finish=resolve})}});
+  const close=personas.data(scope,()=>{emitted=true});close();
+  finish({active:{name:'默认'},items:[]});await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(signal.aborted,true);assert.equal(emitted,false);
+});
+
+test('resume and cancel target the selected session task without publishing', async () => {
+  const calls=[];
+  const client=createClient({fetchImpl:async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return Response.json({ok:true})}});
+  const {panel}=host(client);
+  assert.match((await panel.actions['resume-job'](scope)).toast,/先选择/);
+  panel.actions['select-job'](scope,{value:{id}});
+  assert.equal((await panel.actions['resume-job'](scope)).refresh,true);
+  assert.equal((await panel.actions['cancel-job'](scope)).refresh,true);
+  assert.deepEqual(calls.map(x=>x.body),[{action:'resume',id},{action:'cancel',id}]);
+  assert.ok(calls.every(x=>x.url.endsWith('/api/autopilot')));
+});

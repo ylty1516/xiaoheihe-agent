@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>创作台 · 小黑盒</title><link rel="stylesheet" href="/console.css"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>创作台 · 小黑盒</title><link rel="stylesheet" href="/console.css?v=0.6.0"></head>
 <body>
 <a class="skip-link" href="#writing">跳到写作台</a>
 <div class="ambient" aria-hidden="true"><div class="ambient-orbit orbit-one"></div><div class="ambient-orbit orbit-two"></div><div class="cursor-light" id="cursorLight"></div></div>
@@ -66,8 +66,8 @@
 <div class="field"><label for="personaPrompt">人设描述</label><textarea id="personaPrompt" rows="4" placeholder="性格、语气、表达偏好。现有设定会保留在这里。"></textarea></div>
 <div class="field"><label for="personaExamples">例文与改稿示例</label><textarea id="personaExamples" rows="4" placeholder="可直接贴喜欢的例文，或按“素材/要求：”“参考成稿：”“修改前：”填写。多组用单独一行 --- 分隔。"></textarea></div>
 <details><summary>场景表达与版本</summary><div class="field"><label for="personaName">名称</label><input id="personaName" maxlength="80"></div><div id="personaScenes" class="writing-scope-grid"></div><div class="action-strip"><select id="personaRevision" aria-label="选择历史版本"></select><button id="personaRollback" class="secondary">恢复此版本</button></div><p class="muted">恢复会保存为新修订，保留历史记录。导出为 AstrBot 格式时仅保留人格描述和示例对话。</p></details>
-<div class="dialog-footer"><span id="personaStatus" role="status"></span><button id="personaSave" class="primary">保存并使用</button></div>
 <details id="personaTrial"><summary>用同一份材料试写两版</summary><div class="field"><label for="personaTrialMaterial">试写材料与要求</label><textarea id="personaTrialMaterial" rows="3" placeholder="附上可用事实，并说明篇幅。分别用已保存版和当前编辑版生成，只预览。"></textarea></div><select id="personaTrialScene" aria-label="试写场景"><option value="short">短帖</option><option value="article">长文</option><option value="tutorial">教程</option><option value="comment">评论</option></select><button id="personaTrialStart" class="secondary">试写两版</button><div id="personaTrialResults" class="persona-results"></div></details>
+<div class="dialog-footer"><span id="personaStatus" role="status"></span><button id="personaSave" class="primary">保存并使用</button></div>
 </dialog><input type="file" id="personaFile" accept="application/json,.json" hidden>
-<script src="/editorial.js"></script><script src="/personas.js"></script><script src="/effects.js"></script>
+<script src="/editorial.js?v=0.6.0"></script><script src="/personas.js?v=0.6.0"></script><script src="/effects.js?v=0.6.0"></script>
 </body></html>

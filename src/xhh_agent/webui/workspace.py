@@ -14,18 +14,18 @@ from aiohttp import web
 from xhh_agent.automation.generator import GenerationError
 from xhh_agent.content.diversity import audit
 from xhh_agent.content.editorial import load_history, save_writing_card
+from xhh_agent.content.persona import SCENES, Personas, digest, reference, validate
 from xhh_agent.content.writing import options
 from xhh_agent.protocol.errors import XhhError
 
+from .autopilot import Autopilot
 from .editorial import archived_drafts, draft_path, read_draft
+from .experiments import execute
 from .media import MAX_IMAGE_BYTES, media_path, render_preview, save_image
 from .operations import Operations
 from .publishing import list_drafts
-from .writer import Writer
-from .autopilot import Autopilot
 from .research import fetch_sources
-from .experiments import execute
-from xhh_agent.content.persona import Personas, SCENES, validate, digest, reference
+from .writer import Writer
 
 
 def install_workspace_routes(app, root, cfg):
@@ -65,7 +65,7 @@ def install_workspace_routes(app, root, cfg):
                 return await handler(request)
             except (ValueError, OSError, XhhError) as exc:
                 return web.json_response({"ok": False, "error": str(exc)}, status=400)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return web.json_response(
                     {"ok": False, "error": "请求超时，请核对结果后再操作"}, status=504
                 )
@@ -168,6 +168,15 @@ def install_workspace_routes(app, root, cfg):
                         "active": {**reference(snapshot), "name": snapshot["card"]["name"]},
                     }
                 )
+            if request.query.get("list") == "1":
+                snapshot = personas.get()
+                return web.json_response(
+                    {
+                        "ok": True,
+                        "items": personas.list(),
+                        "active": {**reference(snapshot), "name": snapshot["card"]["name"]},
+                    }
+                )
             if request.query.get("export"):
                 fmt = request.query["export"]
                 return web.json_response(
@@ -261,6 +270,9 @@ def install_workspace_routes(app, root, cfg):
             job = autopilot.create(data)
         elif data.get("action") == "resume":
             job = autopilot.read(data.get("id"))
+            task = autopilot.tasks.get(job["id"])
+            if task and not task.done():
+                raise ValueError("任务正在运行，无需重复继续")
             if job["state"] in {"published", "publishing", "cancelled", "uncertain", "skipped"}:
                 raise ValueError("任务已结束或结果待核对，不能重复继续")
             for key, upper in (("max_model_calls", 30), ("max_seconds", 1800)):

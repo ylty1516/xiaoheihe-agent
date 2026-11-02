@@ -6,9 +6,10 @@
 
 这张卡采用轻二次元表达：文章中角色感较淡，评论和玩笑里更活泼。个性通过观察、判断和回应方式体现，不靠固定句尾或自报身份。含8组素材/成稿/修改前示例，以及长文、短帖、教程、评论四种场景补充。
 
+v0.6.0 已将本卡打包为默认人设，无需导入。已有选择保持不变，可主动切换：
+
 ```sh
-xhh persona import --file examples/personas/shirakawa-mio.json
-# 查看导入返回的编号；只有决定使用时再激活，不会自动替换现有人设。
+# 原有卡仍保留，可通过 persona list 查看。
 xhh persona activate --id shirakawa-mio
 xhh persona export --id shirakawa-mio --format astrbot
 ```

@@ -340,6 +340,13 @@ async def test_http_job_survives_response_and_get_is_read_only(tmp_path, monkeyp
         assert denied.status == 403
         read = await client.get("/api/autopilot?id=" + job["id"])
         assert (await read.json())["job"]["state"] == "writing"
+        duplicate = await client.post(
+            "/api/autopilot", json={"action": "resume", "id": job["id"], "max_model_calls": 30}
+        )
+        assert duplicate.status == 400
+        assert "正在运行" in (await duplicate.json())["error"]
+        read = await client.get("/api/autopilot?id=" + job["id"])
+        assert (await read.json())["job"]["max_model_calls"] == job["max_model_calls"]
         fake_writer.block.set()
         for _ in range(25):
             read = await client.get("/api/autopilot?id=" + job["id"])
