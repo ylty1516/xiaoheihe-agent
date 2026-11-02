@@ -1,0 +1,650 @@
+{
+  "nativeAppVersion": "1.3.398",
+  "shaderVersion": "14",
+  "nativeLibrarySha256": "5ff6850b0b682418bf62be178acb481119be042a7297c1f3bdf47666dca86344",
+  "shaderPayloadSha256": "05d39913b3cfe0345e6cb86d44ce21e1e67a325cf428b8f613d1774f9b2067ea",
+  "records": [
+    {
+      "id": "baseline",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:8226521A",
+        "hkey": "BFDB9883",
+        "nonce": "QCEy6EpviiXkYJMovJrjpDhjQEqEJRoq"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "5c6c889958414a53442b3ff032995303a6a777b9702e6bca4ea3a97c1e5089ba524e914c640cd78e78ba87438d295b70f5bf026b1e3d6abbf2b75f7915601496"
+      }
+    },
+    {
+      "id": "same-input-repeat",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:8226521A",
+        "hkey": "BFDB9883",
+        "nonce": "ZqrFoSYiMkw4DbXDkcFEXFEKoDiwvMQQ"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "5c6c889958414a53442b3ff032995303a6a777b9702e6bca4ea3a97c1e5089ba524e914c640cd78e78ba87438d295b70f5bf026b1e3d6abbf2b75f7915601496"
+      }
+    },
+    {
+      "id": "code-request",
+      "input": {
+        "path": "/account/get_login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "0123456789abcdef0123456789abcdef",
+        "time": "1793052345",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793052345",
+        "_rnd": "14:DBE8F71C",
+        "hkey": "E9CA35E1",
+        "nonce": "LjqjYjYZxqqbd4QSK5ZjLyZvxb4K5hbb"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "185607545867594347505277685b47505e5768544753524706472704076705047702",
+        "eE3hex": "414051424a214701717e105112155a1741614356314447017a486113121a141761015e11425f417e49",
+        "rndHash": "c91d7cf92ad6156f106fe0687776c5ebea1c58c36ee220bde414cb9c531224539a38788f48121ddd4a184dff9b417c342bd074fe4f174f741cad7d4c93f97383"
+      }
+    },
+    {
+      "id": "sign-state",
+      "input": {
+        "path": "/task/sign_v4/get_sign_state",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "12345678"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:5E536571",
+        "hkey": "29FAAC1E",
+        "nonce": "4jSMSjXkZXLvQhxjL5LRFhYdvLY6wSCr"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "184327445c47445e47596857031847524347445e475968074356775206470e04370307370707",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "4b75b9b85b344a797d219845916166fc535b232e6c025e5f4469a0833c91fd3318f5e1135edef58866f7e6526cb0b783b1a0d03729e25a72dacd14fec583fd6e"
+      }
+    },
+    {
+      "id": "sign-task",
+      "input": {
+        "path": "/task/sign_v3/sign",
+        "shaderVersion": "14",
+        "osVersion": "14",
+        "model": "SyntheticDevice",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793052346",
+        "version": "1.3.398",
+        "account": "87654321"
+      },
+      "signature": {
+        "_time": "1793052346",
+        "_rnd": "14:C5A4AF31",
+        "hkey": "ACDCF3BB",
+        "nonce": "ZbohCFpkjxkwCLJQiMc5cxQrJKywhM6C"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "184327445c47445e475968570418075e505706472704076705047701",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e45615f421a424871",
+        "rndHash": "e6f28452bf30dffd959b24041228e91253accfaef615f8885859351f9930cc3928ec638d6fe905069f078a7a42587f4ad35946bc79f32b6e93a2c8c5b48d45ea"
+      }
+    },
+    {
+      "id": "model-ignored",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "DifferentModel",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:8226521A",
+        "hkey": "BFDB9883",
+        "nonce": "dpjiQJFcQSLCpcJhLMkYLbrKJKpkobFD"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "5c6c889958414a53442b3ff032995303a6a777b9702e6bca4ea3a97c1e5089ba524e914c640cd78e78ba87438d295b70f5bf026b1e3d6abbf2b75f7915601496"
+      }
+    },
+    {
+      "id": "account-ignored",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "99999999"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:8226521A",
+        "hkey": "BFDB9883",
+        "nonce": "5iFiRpph6J5wwJcrcQoE4hdLdYDvhKLq"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "5c6c889958414a53442b3ff032995303a6a777b9702e6bca4ea3a97c1e5089ba524e914c640cd78e78ba87438d295b70f5bf026b1e3d6abbf2b75f7915601496"
+      }
+    },
+    {
+      "id": "changed-os",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "14",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:C730D217",
+        "hkey": "BFDB9883",
+        "nonce": "RSMcrSiFXhcdZZKi6E4R5YhSwycLqjDh"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e45615f421a424871",
+        "rndHash": "132ad90a82adf0ea1cef76f438d47abbb3294216f5b19e29b75e574c900c8a3e9d84003b31c5f75c072a22b162833b8c5da22e90792bc0921e56f0c2d5f40258"
+      }
+    },
+    {
+      "id": "changed-version",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.399",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:97BFB1B1",
+        "hkey": "BFDB9883",
+        "nonce": "kopRk5RkYDivk5Dqxj5ypvbKhoRZikvR"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424861",
+        "rndHash": "eae898a7797da82fd477f9f4459766ea162b77aabc665fe881d898c0b1a5714d800bae4da709bb4ea4cb64273cd798847f130a2a2e62fa21e4914dcd86f1bd15"
+      }
+    },
+    {
+      "id": "utc-boundary-before",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793059199",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793059199",
+        "_rnd": "14:F39300A9",
+        "hkey": "76737B6E",
+        "nonce": "vyxjwJwbDFpiwDxoyKhoiExcK5X5EyhF"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070227060e27",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "e6a752c5156948ee21192ddee6a60576998b9df614281ffa64f7ea19dbe44733c87af21f142412ee90f4eaf8ab739c9cab5898fa32caf9a279cd8d63326f1afe"
+      }
+    },
+    {
+      "id": "utc-boundary-after",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793059200",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793059200",
+        "_rnd": "14:975689F6",
+        "hkey": "411DDEDA",
+        "nonce": "cxKTkddLksyLiKcYFe77yZrejR7TM6zd"
+      },
+      "observed": {
+        "nonceDay": 20261027,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070227050737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "02c30f7b6eab34cbb3b4145f5118ca808d8f22a2bf5b751884ab8244ae3876df76dc5e7c5404320336628cd245bb643608f9715b639adca9d9f39523479b94dd"
+      }
+    },
+    {
+      "id": "ascii-127",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:D0F36597",
+        "hkey": "13F53E60",
+        "nonce": "FkMxwyqqwLrqQjQpvFjkqYJ4wJoqcpkp"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e6110",
+        "rndHash": "83ddb9adc955af0befaa8104bc9dfdf159eb7647f008801ad79e0bce3a5756d04ae1b533d6c56a7feff800139fe3ef0d0da7b5ecc35ca7daaa5ad85f31c0b3a7"
+      }
+    },
+    {
+      "id": "ascii-128",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:D0F36597",
+        "hkey": "867A416C",
+        "nonce": "DLQoSMYYiYDwEECLXchdJqEy5XZQ4LXk"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e611010611e106110105a101061101e6110",
+        "rndHash": "83ddb9adc955af0befaa8104bc9dfdf159eb7647f008801ad79e0bce3a5756d04ae1b533d6c56a7feff800139fe3ef0d0da7b5ecc35ca7daaa5ad85f31c0b3a7"
+      }
+    },
+    {
+      "id": "ascii-long",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:E3A3AD65",
+        "hkey": "2FAF1F38",
+        "nonce": "vdRJCZKhdwSjCDMMYSDk4DSpwqjc4bdx"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "13135113125113135112135113131a13135113125113135112135113131a13135113125113135112135113131a13135113125113135112135113131a13135113125113135112135113131a13135113125113135112135113131a13135113125113135112135113131a13135113125113135112135113131a13135113125113",
+        "rndHash": "663a792540d7c9b873ee21447fbc1e27a7c3406429f2083ae5d1d43ed31f21297b6bdc5a0002417c9f98f9302a703d385deef01ace04bebfb483bdd0dfe51944"
+      }
+    },
+    {
+      "id": "unicode",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "测试型号",
+        "debugInfo": "测试设备αβ🤖",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:1C77517D",
+        "hkey": "A0C6467B",
+        "nonce": "hQkv5RbbDoEcooS4XCwZXcjcFYQCLrDZ"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "174441192621195f110e55013f401a430101554261014011565f414849",
+        "rndHash": "e8d5586715560fda103632d7bb11455b904bb7bf34866c72e80d09e1a02cd5c1c6afd3a999eada87c5428d3b56b0d10a642faf31db4c9cae351bd1cb4bf4c9ef"
+      }
+    },
+    {
+      "id": "empty-debug",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "_time": "1793040000",
+        "_rnd": "14:D782664B",
+        "hkey": "A4182B3E",
+        "nonce": "Q46SyREr4ZjhrSFbKdcD6yRLqpDjMSKZ"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "4001615f5611424871",
+        "rndHash": "4b8aba1064c4d35a22184c558de76ae300b2d070656e6388a89d1dc49d6340fb4b4db30636276b5b7e3a653e5b1c64eb1208f1481de49eb85423760afb17398a"
+      }
+    },
+    {
+      "id": "leading-zero-hkey",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "leading-zero-hkey-5",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "MqCiCd5kophLy4cjciZr5CCvXLiD4dSj",
+        "hkey": "2617E97",
+        "_rnd": "14:1D66A515",
+        "_time": "1793040000"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1d1461153e11165c510e03015c195a140821445e01405f4122426149",
+        "rndHash": "39b492018f185dceb62212b0b718c748cc24b775666c6400cc1b945b82c13d4fff65084c5b2f6dbfd6cb9e66087dfc8a921f737f5ea6c6f03d1f402f274be011"
+      }
+    },
+    {
+      "id": "leading-zero-_rnd",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "leading-zero-_rnd-18",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "LkDZLC5pkwyXRp4qjwR4ZhbFyibShckx",
+        "hkey": "1FADF5B9",
+        "_rnd": "14:EC30FD1",
+        "_time": "1793040000"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "1d1461153e11165c510e03015c2e1a1f1521407a61014011565f414849",
+        "rndHash": "0a172b47deb1be10516deae09d3469c65de68fe3ce2598997f11b368d70c756423ec84514729d5536e930bab11d2598890115b4eba0cf46e65d5f03354a88775"
+      }
+    },
+    {
+      "id": "zero-transform-branches",
+      "input": {
+        "path": "/7q/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "7q7q7q7q7q7q7q7q7q7q7q7q7q7q7q",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "bZZxqDddcySLripK4SoyRCkk6ZhkKMCr",
+        "hkey": "A947844D",
+        "_rnd": "14:BB7FAC0D",
+        "_time": "1793040000"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1847271806470e04370307370707",
+        "eE3hex": "015e015e5a61015e015e0161015e5a5e0161015e015e01615a5e015e015a4001615f5611424871",
+        "rndHash": "ecd6da504c3217b6bf9bc59965be98a587ae7ef238263c7a214d57adcf4b3a83bbca3bed8f3a4a5e2351bb035ebf47480bf6eb875963466a3ec0ebf23bd7dc1c"
+      }
+    },
+    {
+      "id": "path-127",
+      "input": {
+        "path": "/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "KoMhoipLvR6E4qx5cvk4bdcDKCQdcYho",
+        "hkey": "C5E04D1B",
+        "_rnd": "14:B0BB8FBF",
+        "_time": "1793040000"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "18473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "15fcfc11af8526d91ce72d3fc22cdde132ccdb26f9bf0a508de2053d419443b5202f33a5e2e949f08a0fadc77e7e15f7def3165979c87da1b1849ed44fb2ee15"
+      }
+    },
+    {
+      "id": "path-128",
+      "input": {
+        "path": "/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "QyjcScx4qFLhRiQMhr5FqbFhqRqiox4E",
+        "hkey": "3D1239CF",
+        "_rnd": "14:B0BB8FBF",
+        "_time": "1793040000"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "18473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747473747",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "15fcfc11af8526d91ce72d3fc22cdde132ccdb26f9bf0a508de2053d419443b5202f33a5e2e949f08a0fadc77e7e15f7def3165979c87da1b1849ed44fb2ee15"
+      }
+    },
+    {
+      "id": "utf8-at-byte-limit",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测",
+        "time": "1793040000",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "rhEq6YjKYLDojCL5wMbyDYF5yiiRKYDM",
+        "hkey": "41C4299C",
+        "_rnd": "14:46C6C248",
+        "_time": "1793040000"
+      },
+      "observed": {
+        "nonceDay": 20261026,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07070337070737",
+        "eE3hex": "174441174e4117444102444117445a174441174e4117444102444117445a174441174e4117444102444117445a174441174e4117444102444117445a174441174e4117444102444117445a174441174e4117444102444117445a174441174e4117444102444117445a174441174e4117444102444117445a174441174e4117",
+        "rndHash": "fa27ba9d03a5b7af16b431d839105e52458ca5020dcfbf73fcd8825784bc5f7be2e855269eb4a79fc0d7276a2137604da1753dbfa896c3a5f59d8c079403f5c2"
+      }
+    },
+    {
+      "id": "next-month",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1793491200",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "SbochjRcWK4KZIDp3apoK4Lpab4R5qqP",
+        "hkey": "9F507364",
+        "_rnd": "14:513D2DA7",
+        "_time": "1793491200"
+      },
+      "observed": {
+        "nonceDay": 20261101,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e07030e27050737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "719bf53d70ec5560d3f096b619efd85899a209d72f7f85cd9c8c0169099bee9b8250b538812869a78fb325571bb0c171762fbbeca5a8835eda6381515d2ff422"
+      }
+    },
+    {
+      "id": "next-year",
+      "input": {
+        "path": "/account/login_code/",
+        "shaderVersion": "14",
+        "osVersion": "17",
+        "model": "PKJ110",
+        "debugInfo": "offline-recovery-probe-1",
+        "time": "1798761600",
+        "version": "1.3.398",
+        "account": "-1"
+      },
+      "signature": {
+        "nonce": "ANZSyAmM9NZyZrA0yzlN8S8EzyVlLmLr",
+        "hkey": "70810D41",
+        "_rnd": "14:51A3CE0D",
+        "_time": "1798761600"
+      },
+      "observed": {
+        "nonceDay": 20270101,
+        "eE2hex": "1856075458675943475b58475e5947545877521827470e37470127010737",
+        "eE3hex": "1e17111d3e11145c510e120107141a085c71032651145c615e01615f421a424871",
+        "rndHash": "1505e8063381b39d60911794ca367d3098e4f624666cf94081a3f23dbb9831e4dc3534e116726c891a3f4600b81ac80612aee34e30d0b06eec2e24bad2d22008"
+      }
+    }
+  ],
+  "nonceReplay": {
+    "timeSeconds": "1793040000",
+    "dateKey": 20261026,
+    "alphabet": "hovCJQX4bipwDKRY5cjqxELSZ6dkryFM",
+    "indices": [
+      14,
+      13,
+      11,
+      11,
+      25,
+      3,
+      5,
+      20,
+      26,
+      19,
+      23,
+      18,
+      20,
+      31,
+      29,
+      0,
+      11,
+      22,
+      20,
+      24,
+      12,
+      13,
+      28,
+      28,
+      12,
+      13,
+      24,
+      13,
+      20,
+      3,
+      22,
+      30
+    ],
+    "actual": "RKww6CQxdqSjxMyhwLxZDKrrDKZKxCLF",
+    "calculated": "RKww6CQxdqSjxMyhwLxZDKrrDKZKxCLF",
+    "pass": true
+  }
+}

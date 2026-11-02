@@ -1,0 +1,17 @@
+{
+  "name": "xhh-native-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "fingerprint-generator": "2.1.89",
+    "jsdom": "27.0.1"
+  }
+}

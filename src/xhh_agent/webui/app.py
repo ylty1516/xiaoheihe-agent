@@ -108,6 +108,9 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     async def index(_: web.Request) -> web.FileResponse:
         return web.FileResponse(STATIC_DIR / "index.html")
 
+    async def app_daily_script(_: web.Request) -> web.FileResponse:
+        return web.FileResponse(STATIC_DIR / "app-daily.js")
+
     async def editorial_script(_: web.Request) -> web.FileResponse:
         return web.FileResponse(STATIC_DIR / "editorial.js")
 
@@ -226,6 +229,7 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     app = web.Application(middlewares=[local_mutation])
     app["duty_url"] = ""
     app.router.add_get("/", index)
+    app.router.add_get("/app-daily.js", app_daily_script)
     app.router.add_get("/editorial.js", editorial_script)
     app.router.add_get("/console.css", console_style)
     app.router.add_get("/effects.js", background_script)

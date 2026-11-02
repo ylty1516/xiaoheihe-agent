@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/Cansiny0320/heybox-daily",
+  "commit": "15d6f3c3537a2914fbef8098d5306b9a7529924c",
+  "sha256": {
+    "client.ts": "85729db0bfbb27644a418c59ff9aa217522fa8ea07ce3a2f125154d927f96cb9",
+    "config.ts": "c148e29c713554ff4f0cfb9f3aae9d6f5a8172ce3c7e6959dc41106a787227ac",
+    "device-token.ts": "f70d9ea865c559c32af55eebf8bfcf079fc9464b399a024dfdcec131115fc178",
+    "device-token-network.ts": "6b80ea9dc96354d60a5e9ee0533ad4bd543cec3f726f2beda0842d1be04934f6",
+    "login-core.ts": "d7aa6a99475a2842e75cc4eeb40016ef75effada77ac6fd569c5c91849efe158",
+    "native.ts": "8a49a8c0045fe4546ac924506de1d41f463fdf20dd5037d0d2d99e17bf51affa",
+    "native-algorithm.ts": "b125ac385000348f2d92da53aa4c19ce89316ecb67b03ffeaf9f013c2be7bfab",
+    "profile.ts": "30ad4c430908339837f8ae2a05e62e1d8c7637164ee39299becf2323a23fa5f0",
+    "report.ts": "d47b604a3a88c034d9021263be7cbb29721164100e9995b1bd5e3b26655c4fff",
+    "signature.ts": "88cb62fdf2f2ef8fa2d487de8b41442db6408e61ccac30a1b39f37b7cde05f6c",
+    "tasks.ts": "3309d5737617ccdb640bc9eec0a68136503e0702a389cedb05d5bd31abe83cb2",
+    "types.ts": "b759fff9b7d784ea39943808eced8a23956d184a793d0a38e9ea3c991fd1832e",
+    "sign-diagnostics.ts": "e4bb80deaeeb82a077b0940146ab6be427a480a0b8c44bf008d0cf9a4bf1fb4d"
+  },
+  "normalization": "LF"
+}

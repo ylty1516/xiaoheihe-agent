@@ -58,3 +58,25 @@ jobs:
         run: node --test integrations/dsh-go/test/*.test.js
         env:
           DSH_GO_SDK: ${{ github.workspace }}/.dsh-go-sdk/sdk/plugin-kit
+
+  app-native:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: integrations/heybox-app/package-lock.json
+      - name: 安装本机App登录依赖
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: integrations/heybox-app
+      - name: 校验来源并重建原生运行时
+        run: npm run build
+        working-directory: integrations/heybox-app
+      - name: 校验原生签名与任务执行保护
+        run: npm test
+        working-directory: integrations/heybox-app

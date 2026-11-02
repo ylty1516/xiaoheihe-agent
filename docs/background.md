@@ -22,4 +22,4 @@ Windows 可用 `powershell -NoProfile -File scripts/background.ps1 -Action Insta
 
 [官方桌面定时任务说明](https://learn.chatgpt.com/docs/automations?surface=app)明确本地项目需要电脑开机且应用运行。DSH Go连接电脑时也依赖该电脑在线。现有评论扫描和学习任务不由此安装器更改。
 
-每日签到与分享任务的真实进度可开启[每日任务检查](daily-tasks.md)；当前仅支持监测，App签到及真实对外分享尚未接通，不把后台在线当作任务完成。
+首次在主机控制台连接App账号后，可开启[每日签到与任务执行](daily-tasks.md)。该流程独立于Codex文章定时任务，只处理已适配的App签到和分享流程，不向社交平台发送消息。未适配或未确认完成的任务不会记为成功。

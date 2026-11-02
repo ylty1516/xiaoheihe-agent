@@ -17,6 +17,8 @@ from xhh_agent.content.editorial import load_history, save_writing_card
 from xhh_agent.content.persona import SCENES, Personas, digest, reference, validate
 from xhh_agent.content.preferences import load_preferences, save_preferences
 from xhh_agent.automation.daily import DailyTasks
+from xhh_agent.automation.native_app import NativeApp
+from xhh_agent.protocol.session import SessionStore
 from xhh_agent.content.writing import options
 from xhh_agent.protocol.errors import XhhError
 
@@ -37,7 +39,8 @@ def install_workspace_routes(app, root, cfg):
     personas = Personas(root)
     watcher = None
     daily_watcher = None
-    daily_tasks = DailyTasks(root, operations.client)
+    app_client = NativeApp(root, lambda: SessionStore(operations.session_path).load().heybox_id)
+    daily_tasks = DailyTasks(root, operations.client, app_client)
 
     async def startup(_):
         nonlocal watcher, daily_watcher
@@ -52,6 +55,8 @@ def install_workspace_routes(app, root, cfg):
         if daily_watcher:
             daily_watcher.cancel()
             await asyncio.gather(daily_watcher, return_exceptions=True)
+        await daily_tasks.close()
+        await app_client.close()
 
     app.on_startup.append(startup)
     app.on_cleanup.append(cleanup)
@@ -91,11 +96,44 @@ def install_workspace_routes(app, root, cfg):
     @route
     async def daily_status(request):
         if request.method == "POST":
-            await body(request)
-            report = await daily_tasks.refresh()
+            data = await body(request)
+            action = data.get("action", "refresh")
+            if action == "start":
+                report = daily_tasks.start(confirm=data.get("confirm") is True)
+            elif action == "run":
+                report = await daily_tasks.execute(confirm=data.get("confirm") is True)
+            elif action == "settings":
+                for name in ("enabled", "auto_execute"):
+                    if name in data and not isinstance(data[name], bool):
+                        raise ValueError("每日任务开关必须是布尔值")
+                if data.get("auto_execute") is True and data.get("confirm") is not True:
+                    raise ValueError("开启自动执行需要确认")
+                daily_tasks.save_settings(enabled=data.get("enabled"), auto_execute=data.get("auto_execute"))
+                report = daily_tasks.read()
+            elif action == "refresh":
+                report = daily_tasks.status() if app_client.running else await daily_tasks.refresh()
+            else:
+                raise ValueError("不支持的每日任务操作")
         else:
-            report = daily_tasks.read()
-        return web.json_response({"ok": True, **report})
+            report = daily_tasks.status()
+        return web.json_response({"ok": True, **report, "settings": daily_tasks.settings()})
+
+    @route
+    async def app_session(request):
+        if request.method == "GET":
+            data = await app_client.status()
+        else:
+            data = await body(request)
+            action = data.get("action")
+            if action == "send_code":
+                data = await app_client.send_code(data.get("phone"))
+            elif action == "verify_code":
+                data = await app_client.verify_code(data.get("login_id"), data.get("code"))
+                if daily_tasks.settings().get("auto_execute") is True:
+                    daily_tasks.start(confirm=True)
+            else:
+                raise ValueError("不支持的App登录操作")
+        return web.json_response({"ok": True, **data})
 
     @route
     async def authoring_settings(request):
@@ -409,6 +447,8 @@ def install_workspace_routes(app, root, cfg):
     app.router.add_get("/api/autopilot", jobs)
     app.router.add_get("/api/desk", desk)
     app.router.add_get("/api/authoring-settings", authoring_settings)
+    app.router.add_get("/api/app-session", app_session)
+    app.router.add_post("/api/app-session", app_session)
     app.router.add_get("/api/daily-tasks", daily_status)
     app.router.add_post("/api/daily-tasks", daily_status)
     app.router.add_post("/api/authoring-settings", authoring_settings)

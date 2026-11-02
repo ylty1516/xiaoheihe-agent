@@ -1,6 +1,6 @@
 {
   "name": "local-xiaoheihe",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
@@ -50,15 +50,29 @@
       "panels": [
         {
           "id": "topics",
-          "title": { "zh": "发布分区", "en": "Post topics" },
+          "title": {
+            "zh": "发布分区",
+            "en": "Post topics"
+          },
           "icon": "list",
-          "placement": ["session.tab", "features", "chat.panel"]
+          "placement": [
+            "session.tab",
+            "features",
+            "chat.panel"
+          ]
         },
         {
           "id": "settings",
-          "title": { "zh": "创作设置", "en": "Writing settings" },
+          "title": {
+            "zh": "创作设置",
+            "en": "Writing settings"
+          },
           "icon": "settings",
-          "placement": ["session.tab", "features", "chat.panel"]
+          "placement": [
+            "session.tab",
+            "features",
+            "chat.panel"
+          ]
         },
         {
           "id": "desk",

@@ -23,7 +23,7 @@ def test_platform_completion_is_authoritative(state, complete):
     assert report["complete"] is complete
     if not complete:
         assert "App" in report["tasks"][0]["reason"]
-        assert "实际分享" in report["tasks"][1]["reason"]
+        assert "分享流程" in report["tasks"][1]["reason"]
 
 
 @pytest.mark.parametrize("result", [{}, {"task_list": []}, {"task_list": [{"title": "每日任务", "tasks": []}]}, sample("unknown")])

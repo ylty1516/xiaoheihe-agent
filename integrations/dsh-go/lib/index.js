@@ -1,6 +1,7 @@
 import { createClient } from './client.js'
 import { pages, clip, detail, controls, stateLabel, JOBS_PER_PAGE } from './presentation.js'
 import { installTopics } from './topics.js'
+import { dailyPanel } from './daily.js'
 
 export const name = 'local-xiaoheihe'
 export const deskView = {
@@ -10,7 +11,7 @@ export const deskView = {
     { type: 'text', text: '在聊天输入框写要求，再点「自动成稿」。留空默认找 GitHub 开源项目。', tone: 'muted' },
     { type: 'text', text: { $: 'data.topics' }, tone: 'muted' },
     { type: 'text', text: { $: 'data.daily' }, tone: 'muted' },
-    { type: 'actions', items: [{ label: '创作设置', action: 'open-settings', icon: 'settings' }] },
+    { type: 'actions', items: [{ label: '创作设置', action: 'open-settings', icon: 'settings' },{label:'每日任务',action:'open-daily',icon:'clock'}] },
     { type: 'list', items: { $: 'data.items' } },
     { type: 'text', text: { $: 'data.jobsPage' }, tone: 'muted' },
     { type: 'actions', items: [
@@ -46,7 +47,7 @@ export const settingsView = {
   type: 'stack', title: '创作设置', children: [
     {type:'text',text:'设置用于当前对话后续新建的任务，已有任务保持原设置。'},
     {type:'text',text:{$:'data.topics'}},
-    {type:'actions',items:[{label:'发布分区',action:'open-topics',icon:'list'}]},
+    {type:'actions',items:[{label:'发布分区',action:'open-topics',icon:'list'},{label:'每日任务',action:'open-daily-settings',icon:'clock'}]},
     ...Object.entries(choices).flatMap(([key, values]) => [
       {type:'text',text:({profile:'篇幅',images:'配图',subject:'题材'})[key]},
       {type:'options',id:'set-'+key,selected:{$:'data.'+key},options:values.map(([value,label])=>({value,label}))},
@@ -100,10 +101,17 @@ export function install(ctx, client) {
     return states.get(key)
   }
   const topicSettings = installTopics(ctx, client, stateFor)
+  const daily = dailyPanel(client)
   ctx.dshGo.panel('settings', {
-    view: settingsView,
-    data: (scope, emit) => { emit({...stateFor(scope).options,topics:topicSettings.summary(scope)}); return () => {} },
+    view: scope => stateFor(scope).settingsPane==='daily'?daily.view:settingsView,
+    data: (scope, emit) => {
+      if(stateFor(scope).settingsPane==='daily')return daily.data(scope,emit)
+      emit({...stateFor(scope).options,topics:topicSettings.summary(scope)}); return () => {}
+    },
     actions: {
+      ...daily.actions,
+      'open-daily-settings':scope=>{stateFor(scope).settingsPane='daily';return {refresh:true}},
+      'back-writing':scope=>{stateFor(scope).settingsPane='writing';return {refresh:true}},
       'back-desk': () => ({open:'panel:desk'}),
       'open-topics': () => ({open:'panel:topics'}),
       ...Object.fromEntries(Object.entries(choices).map(([key, values]) => ['set-'+key, (scope, event) => {
@@ -197,7 +205,8 @@ export function install(ctx, client) {
       return () => { closed = true; clearTimeout(timer); controller.abort() }
     },
     actions: {
-      'open-settings': () => ({open:'panel:settings'}),
+      'open-settings': scope => {stateFor(scope).settingsPane='writing';return {open:'panel:settings'}},
+      'open-daily': scope => {stateFor(scope).settingsPane='daily';return {open:'panel:settings'}},
       'previous-jobs': scope => { const state = stateFor(scope); state.jobsPage = Math.max(0, state.jobsPage - 1); return {refresh:true} },
       'next-jobs': scope => { const state = stateFor(scope); state.jobsPage = Math.min(Math.max(0, Math.ceil(state.jobsCount / JOBS_PER_PAGE) - 1), state.jobsPage + 1); return {refresh:true} },
       'previous-page': scope => { const state = stateFor(scope); state.page = Math.max(0, state.page - 1); return {refresh:true} },
