@@ -1,7 +1,7 @@
 /* Authoring workspace. Two everyday inputs; secondary tasks live in dialogs. */
 (() => {
   const $ = id => document.getElementById(id);
-  let current = null, revision = null, brief = null, notes = '', dirty = false, serial = 0;
+  let documentPersona=null, current = null, revision = null, brief = null, notes = '', dirty = false, serial = 0;
   let saveTimer, saveChain = Promise.resolve(), conflict = false, library = {drafts:[],archived:[],published:[]};
   let libraryTab = 'drafts', previewing = false, report = null, model = {}, aiMode = 'outline', generation = null, aiBusy = false;
   let activeNote = null, contentProfile = 'article', currentSubject='auto', currentGenre='auto', subjectExplicit=false, lastTopic='盒友杂谈';
@@ -45,7 +45,7 @@
       $('saveState').textContent='保存中…';
       try {
         const data=await api('/api/editorial',{action:'save',file,revision,brief,
-          markdown:$('articleBody').value,metadata:{title:$('titleInput').value,topic:$('topicInput').value==='__custom'?lastTopic:$('topicInput').value,notes,profile:contentProfile,genre:currentGenre,...(subjectExplicit?{subject:currentSubject}:{})}});
+          markdown:$('articleBody').value,metadata:{title:$('titleInput').value,topic:$('topicInput').value==='__custom'?lastTopic:$('topicInput').value,notes,profile:contentProfile,genre:currentGenre,...(documentPersona?{persona:documentPersona}:{}),...(subjectExplicit?{subject:currentSubject}:{})}});
         if(current===file) {revision=data.revision; if(snapshot===serial){dirty=false;$('btnSaveNow').hidden=true;} $('saveState').textContent=dirty?'待保存…':'已自动保存';}
         await loadLibrary();
       } catch(error) {if(error.message.includes('其他窗口'))conflict=true; $('saveState').textContent='保存失败，内容仍在本页'; throw error;}
@@ -74,7 +74,7 @@
   }
   function chooseProfile(value) {contentProfile=value;$('aiProfile').value=value;$('publishProfile').value=value;}
   function setDocument(data) {
-    current=data.file; revision=data.revision; brief=data.has_brief?data.brief:null; notes=data.metadata?.notes||''; dirty=false; conflict=false; serial++;
+    documentPersona=data.metadata?.persona||null; current=data.file; revision=data.revision; brief=data.has_brief?data.brief:null; notes=data.metadata?.notes||''; dirty=false; conflict=false; serial++;
     $('titleInput').value=data.title||''; $('articleBody').value=data.markdown||''; subjectExplicit=Object.prototype.hasOwnProperty.call(data.metadata||{},'subject');currentSubject=data.metadata?.subject||'auto';currentGenre=data.metadata?.genre||'auto';chooseTopic(data.metadata?.topic||writingOptions.default_topic);chooseProfile(data.metadata?.profile||'article');updateWritingScope();
     $('saveState').textContent='所有修改已保存'; $('aiMaterial').value=notes; report=null;
     ['titleInput','articleBody','btnDuplicate','btnExport','btnArchive','btnCheck'].forEach(id=>$(id).disabled=false);
@@ -198,7 +198,7 @@
     if(mode==='rewrite'&&!selection.trim())throw new Error('先关闭窗口，在正文选中一段，再打开 AI 助手');
     notes=$('aiMaterial').value;mark();await save();
     aiBusy=true;$('btnGenerate').disabled=true;$('btnApplyAI').hidden=true;$('aiResult').hidden=true;$('aiNote').textContent='';$('aiReview').hidden=true;$('aiStatus').textContent='正在生成，原稿保持原样…';
-    try {const result=await api('/api/generate',{mode,title,profile:contentProfile,subject:currentSubject,genre:currentGenre,markdown:body,selected:selection,material:notes+(brief?'\n已有选题卡：'+JSON.stringify(brief):'')});generation={file,body,title,mode,start:selectedRange?.start,end:selectedRange?.end,text:result.text};$('aiResult').textContent=result.text;$('aiResult').hidden=false;$('btnApplyAI').hidden=false;$('btnApplyAI').textContent=mode==='outline'?'插入提纲':mode==='rewrite'?'替换选中段落':'采用正文';if(mode==='outline') {
+    try {const result=await api('/api/generate',{mode,title,profile:contentProfile,subject:currentSubject,genre:currentGenre,markdown:body,selected:selection,material:notes+(brief?'\n已有选题卡：'+JSON.stringify(brief):'')});generation={file,body,title,mode,persona:result.persona,start:selectedRange?.start,end:selectedRange?.end,text:result.text};$('aiResult').textContent=result.text;$('aiResult').hidden=false;$('btnApplyAI').hidden=false;$('btnApplyAI').textContent=mode==='outline'?'插入提纲':mode==='rewrite'?'替换选中段落':'采用正文';if(mode==='outline') {
       const choices=result.text.split(/(?=^##\s*方案\s*\d+\s*[：:])/m).map(s=>s.trim()).filter(s=>/^##\s*方案\s*\d+\s*[：:]/.test(s));
       if(choices.length>0) {$('aiResult').replaceChildren();$('btnApplyAI').hidden=true;for(const choice of choices){const section=document.createElement('section');section.className='outline-pick';const text=document.createElement('div');text.textContent=choice;section.append(text,button('采用这份提纲',async()=>{generation.text=choice;await applyAI();},'secondary'));$('aiResult').append(section);}}
     }
@@ -209,7 +209,7 @@
     const g=generation;if(!g)return;
     if(current!==g.file||$('articleBody').value!==g.body)throw new Error('原稿已变化，未覆盖。请复制需要的结果到当前正文。');
     $('articleBody').value=g.mode==='rewrite'?g.body.slice(0,g.start)+g.text+g.body.slice(g.end):g.mode==='outline'?g.text+'\n\n'+g.body:g.text;
-    mark();await save();if(previewing)await preview();$('aiDialog').close();generation=null;toast('已采用并保存，请核对内容后发布');
+    if(g.persona)documentPersona=g.persona;mark();await save();if(previewing)await preview();$('aiDialog').close();generation=null;toast('已采用并保存，请核对内容后发布');
   }
   function output(text) {$('operationOutput').hidden=false;$('operationOutput').textContent=text;}
   async function operation(name) {output('正在处理…');const data=await api('/api/action',{name});output((data.lines||[]).join('\n')||data.title);await refreshState();if(name==='poll')await loadComments();}

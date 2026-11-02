@@ -117,6 +117,9 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     async def background_script(_: web.Request) -> web.FileResponse:
         return web.FileResponse(STATIC_DIR / "effects.js")
 
+    async def persona_script(_: web.Request) -> web.FileResponse:
+        return web.FileResponse(STATIC_DIR / "personas.js")
+
     async def state(request: web.Request) -> web.Response:
         payload = await asyncio.to_thread(build_state, base)
         payload["duty_url"] = request.app["duty_url"]
@@ -223,6 +226,7 @@ def create_app(root: Path | None = None, cfg: Config | None = None) -> web.Appli
     app.router.add_get("/editorial.js", editorial_script)
     app.router.add_get("/console.css", console_style)
     app.router.add_get("/effects.js", background_script)
+    app.router.add_get("/personas.js", persona_script)
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/drafts", drafts)
     app.router.add_post("/api/action", action)

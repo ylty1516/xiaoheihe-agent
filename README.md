@@ -11,6 +11,8 @@ DSH Go 手机原生入口见 [手机适配说明](integrations/dsh-go/README.md)
 
 个人编辑部的 [实施方案与当前边界](docs/editorial-roadmap.md) 包含专题资料追踪、手机随记、内容增量记忆、验证记录、发布反馈和任务控制。WebUI 顶部「专题素材」可直接开始收集。
 
+文风由 [统一人设卡](docs/personas.md) 管理：兼容 AstrBot 导入导出，支持例文、场景表达、版本回滚和两版试写；WebUI、评论、自动任务与外部 agent 共用同一套加载规则。
+
 ```
 xhh publish --md 稿子.md --title "标题" --tag 1 --yes
 ```

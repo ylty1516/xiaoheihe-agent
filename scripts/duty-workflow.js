@@ -10,7 +10,7 @@ const task = [
   "小黑盒发帖值班（只发《影之刃零》）。",
   "工作目录：F:/Grok_Workspace/01_Projects/xiaoheihe-agent",
   "",
-  "第一步：完整读 docs/editorial-workflow.md、docs/posting-duty.md、voice/profile.md。文章结构、篇幅、连接词以 editorial-workflow 为准，profile 的短回复偏好不覆盖文章规则。",
+  "第一步：完整读 docs/editorial-workflow.md、docs/posting-duty.md；运行 py -m xhh_agent.cli.main persona prompt --scene article 读取当前统一人设与版本。人设只管表达，不改本值班授权、事实要求和排期，不再各自加载另一份语气规则。",
   "",
   "铁律：",
   "1. 先跑 py -m xhh_agent.cli.main doctor；退出码 3 或不过 → 立刻停，报告会话失效。",

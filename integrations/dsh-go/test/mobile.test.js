@@ -99,6 +99,16 @@ test('phone note capture and task pause use explicit actions', async () => {
   assert.deepEqual(controls,[[id,'pause']])
 })
 
+test('persona badge does not expose a prompt or break older hosts', async () => {
+  for(const compatible of [true,false]){
+    let notify;const ready=new Promise(resolve=>{notify=resolve});let state;
+    const {panel}=host({list:async()=>({items:[]}),persona:async()=>{if(!compatible)throw new Error('404');return {active:{name:'统一人设',revision:3}}}});
+    const close=panel.data(scope,data=>{state=data;notify()});await ready;close();
+    assert.match(state.persona,compatible?/统一人设.*3/:/暂未提供/);
+    assert.ok(!JSON.stringify(state).includes('system_prompt'));
+  }
+})
+
 test('adapter communicates with a real loopback HTTP server', async () => {
   const calls = []
   const server = createServer(async (req, res) => {

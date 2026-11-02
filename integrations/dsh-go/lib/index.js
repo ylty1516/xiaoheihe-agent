@@ -4,6 +4,7 @@ export const name = 'local-xiaoheihe'
 export const deskView = {
   type: 'stack', title: '小黑盒创作台', children: [
     { type: 'text', text: { $: 'data.status' } },
+    { type: 'text', text: { $: 'data.persona' }, tone: 'muted' },
     { type: 'text', text: '在聊天输入框写要求，再点「自动成稿」。留空则从游戏热榜选题。', tone: 'muted' },
     { type: 'list', items: { $: 'data.items' } },
     { type: 'list', items: { $: 'data.materials' } },
@@ -64,7 +65,9 @@ export function install(ctx, client) {
             state.preview = (draft.title + '\n\n' + draft.markdown).slice(0, 3500)
           }
           const materials = client.materials ? (await client.materials(controller.signal)).items.filter(x=>['note','source','question','experiment'].includes(x.kind)).slice(0,5) : []
-          if (!closed) emit({ materials: materials.map(x=>({title:x.event,subtitle:x.text.slice(0,100),action:{id:'use-material',args:{id:x.id}}})), status: rows.length ? '任务在主机后台执行，关闭面板后继续。' : '还没有创作任务。',
+          let persona=''
+          if(client.persona){try{const data=await client.persona(controller.signal);persona='当前人设：'+data.active.name+' · 修订 '+data.active.revision}catch{persona='当前主机暂未提供人设信息'}}
+          if (!closed) emit({ persona, materials: materials.map(x=>({title:x.event,subtitle:x.text.slice(0,100),action:{id:'use-material',args:{id:x.id}}})), status: rows.length ? '任务在主机后台执行，关闭面板后继续。' : '还没有创作任务。',
             items: rows.map(x => ({ title: (x.title || '自动选题').slice(0, 100), subtitle: x.message.slice(0, 200),
               action: { id: 'select-job', args: { id: x.id } } })), preview: state.preview })
         } catch {
