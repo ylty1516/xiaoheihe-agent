@@ -102,7 +102,10 @@
     if(job.state==='awaiting_images'){const line=document.createElement('p');line.textContent='正文已保存。插件可读取配图任务，生成后自动回填；仅运行 WebUI 时，任务会等在这里。';detail.append(line);}
     const actions=$('autoTaskActions');actions.replaceChildren();
     if(job.file)actions.append(button('查看成稿',async()=>{$('autoDialog').close();await openDraft(job.file);},'secondary'));
-    if(['paused','failed','review','ready'].includes(job.state))actions.append(button('继续处理',async()=>{await api('/api/autopilot',{action:'resume',id:job.id});await showAutoJob(job.id);},'secondary'));
+    if(['paused','user_paused','failed','review','ready'].includes(job.state))actions.append(button('继续处理',async()=>{await api('/api/autopilot',{action:'resume',id:job.id});await showAutoJob(job.id);},'secondary'));
+    if(autoActive(job.state)&&job.state!=='publishing')actions.append(button('暂停',async()=>{await api('/api/autopilot',{action:'pause',id:job.id});await showAutoJob(job.id);},'secondary'));
+    if(!['published','publishing','uncertain','cancelled'].includes(job.state))actions.append(button('取消任务',async()=>{await api('/api/autopilot',{action:'cancel',id:job.id});await showAutoJob(job.id);},'text-button'));
+    if(job.state==='published')actions.append(button('获取反馈',async()=>{await api('/api/autopilot',{action:'feedback',id:job.id});toast('反馈已归档到专题素材');},'secondary'));
     $('btnStartAuto').disabled=autoActive(job.state);
     if(job.file&&['ready','published','review'].includes(job.state)&&autoOpened!==job.id&&!dirty&&current===autoStartFile&&revision===autoStartRevision){
       autoOpened=job.id;await loadLibrary();await openDraft(job.file,false);toast(job.state==='published'?'自动任务已发布':'自动成稿已保存，可直接查看');
@@ -306,5 +309,15 @@
   document.addEventListener('visibilitychange',()=>{clearTimeout(discoveryTimer);if(discoveryActive()&&$('autoDiscover').checked)discover(discoveryQuery,{automatic:true});});window.addEventListener('hashchange',showScreen);window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().catch(error=>toast(error.message,true));}if((event.ctrlKey||event.metaKey)&&event.key==='Enter'&&current&&!document.querySelector('dialog[open]')){event.preventDefault();check().catch(error=>toast(error.message,true));}});
   showScreen();Promise.all([loadWritingOptions(),loadLibrary(),loadModel(),refreshState()]).then(async()=>{if(library.drafts[0])await openDraft(library.drafts[0].name,false);}).catch(error=>toast(error.message,true));
+  const deskButton=button('专题素材',async()=>{dialog('deskDialog');await loadDesk();});$('modelSetup').before(deskButton);
+  async function loadDesk(){const data=await api('/api/desk');$('deskItems').replaceChildren();
+    for(const item of data.followups||[]){const p=document.createElement('p');p.textContent=item.event+'：'+item.reason;$('deskItems').append(p);}
+    for(const item of data.items){const row=document.createElement('section'),p=document.createElement('p');p.textContent=item.event+' · '+({note:'随记',question:'读者问题',experiment:'验证记录',source:'来源资料',article:'稿件',image:'配图',feedback:'反馈'}[item.kind]||'素材')+'\n'+item.text.slice(0,400);row.append(p);
+      if(['source','note','experiment','question'].includes(item.kind))row.append(button('据此成稿',async()=>{const {job}=await api('/api/autopilot',{material_id:item.id,instruction:'根据这份材料写作，说明资料归属与适用边界',profile:'flexible',images:'auto',publish:false});$('deskDialog').close();dialog('autoDialog');await showAutoJob(job.id);},'secondary'));
+      $('deskItems').append(row);}
+  }
+  $('deskSave').onclick=run(async()=>{await api('/api/desk',{kind:$('deskKind').value,event:$('deskEvent').value.trim()||'未分类',text:$('deskText').value});$('deskText').value='';$('deskStatus').textContent='已归档，可直接用于创作';await loadDesk();});
+  const verifyButton=button('验证本机环境',async()=>{await api('/api/desk',{action:'experiment',recipe:'runtime',event:$('deskEvent').value.trim()||'环境验证'});await loadDesk();},'secondary');$('deskSave').after(verifyButton);
+  $('deskFetch').onclick=run(async()=>{const input=$('deskSource').value.trim(),index=input.indexOf(':');if(index<1)throw new Error('请填写 steam:AppID 或 github:作者/仓库');$('deskStatus').textContent='读取公开资料中…';await api('/api/desk',{action:'fetch',provider:input.slice(0,index),key:input.slice(index+1),event:$('deskEvent').value.trim()});$('deskStatus').textContent='已归档；服务运行期间每两小时检查变化';await loadDesk();});
   setInterval(()=>{if(!document.hidden)refreshState();},15000);
 })();

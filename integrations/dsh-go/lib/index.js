@@ -6,17 +6,25 @@ export const deskView = {
     { type: 'text', text: { $: 'data.status' } },
     { type: 'text', text: '在聊天输入框写要求，再点「自动成稿」。留空则从游戏热榜选题。', tone: 'muted' },
     { type: 'list', items: { $: 'data.items' } },
+    { type: 'list', items: { $: 'data.materials' } },
     { type: 'text', text: { $: 'data.preview' } },
     { type: 'actions', items: [
       { label: '刷新', action: 'reload', icon: 'refresh' },
       { label: '复制成稿', action: 'copy-draft', icon: 'copy' },
       { label: '交给助手', action: 'continue-agent', icon: 'chat' },
+      { label: '暂停任务', action: 'pause-job', icon: 'clock' },
     ] },
   ],
 }
 
 // Export the factory for tests; production uses the same loopback client.
 export function install(ctx, client) {
+  ctx.dshGo.on('open-desk', async scope => {
+    const text = scope.draft?.trim()
+    if (!text || text.length > 30000) return { toast: '先在输入框写下要保存的素材' }
+    try { await client.capture(text); return { open: 'panel:desk' } }
+    catch { return { toast: '保存未确认，请查看素材后再操作' } }
+  })
   const states = new Map()
   const stateFor = scope => {
     const key = scope.sessionId || 'features'
@@ -55,7 +63,8 @@ export function install(ctx, client) {
             state.file = selected.file; state.markdown = draft.markdown
             state.preview = (draft.title + '\n\n' + draft.markdown).slice(0, 3500)
           }
-          if (!closed) emit({ status: rows.length ? '任务在主机后台执行，关闭面板后继续。' : '还没有创作任务。',
+          const materials = client.materials ? (await client.materials(controller.signal)).items.filter(x=>['note','source','question','experiment'].includes(x.kind)).slice(0,5) : []
+          if (!closed) emit({ materials: materials.map(x=>({title:x.event,subtitle:x.text.slice(0,100),action:{id:'use-material',args:{id:x.id}}})), status: rows.length ? '任务在主机后台执行，关闭面板后继续。' : '还没有创作任务。',
             items: rows.map(x => ({ title: (x.title || '自动选题').slice(0, 100), subtitle: x.message.slice(0, 200),
               action: { id: 'select-job', args: { id: x.id } } })), preview: state.preview })
         } catch {
@@ -66,6 +75,18 @@ export function install(ctx, client) {
       return () => { closed = true; clearTimeout(timer); controller.abort() }
     },
     actions: {
+      'pause-job': async scope => {
+        const id=stateFor(scope).selected
+        if(!id)return {toast:'先选择一个任务'}
+        try {await client.control(id,'pause');return {refresh:true}}
+        catch {return {toast:'未能暂停，请查看任务是否已完成或正在提交'}}
+      },
+      'use-material': async (scope, event) => {
+        const id = event.value?.id
+        if (typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id)) return {toast:'素材编号无效'}
+        try { const data=await client.fromMaterial(id);stateFor(scope).selected=data.job.id;return {refresh:true} }
+        catch { return {toast:'启动未确认，请查看任务，勿重复启动'} }
+      },
       'select-job': (scope, event) => {
         const id = event.value?.id
         if (typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id)) return { toast: '任务编号无效' }

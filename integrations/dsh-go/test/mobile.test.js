@@ -89,6 +89,16 @@ test('long or invalid instructions do not touch the service', async () => {
   assert.match((await handlers['write-post']({ draft: 'x'.repeat(8001) })).toast, /八千/)
 })
 
+test('phone note capture and task pause use explicit actions', async () => {
+  const captured = [], controls = []
+  const { handlers, panel } = host({capture: async text=>captured.push(text), control: async (...args)=>controls.push(args)})
+  assert.deepEqual(await handlers['open-desk'](scope), {open:'panel:desk'})
+  assert.deepEqual(captured,[scope.draft])
+  panel.actions['select-job'](scope,{value:{id}})
+  assert.deepEqual(await panel.actions['pause-job'](scope),{refresh:true})
+  assert.deepEqual(controls,[[id,'pause']])
+})
+
 test('adapter communicates with a real loopback HTTP server', async () => {
   const calls = []
   const server = createServer(async (req, res) => {

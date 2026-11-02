@@ -17,7 +17,7 @@
     "contributes": {
       "composer.actions": [
         { "id": "write-post", "label": { "zh": "自动成稿", "en": "Write" }, "icon": "write" },
-        { "id": "open-desk", "label": { "zh": "创作进度", "en": "Progress" }, "effect": { "type": "open", "page": "panel:desk" } }
+        { "id": "open-desk", "label": { "zh": "保存素材", "en": "Save note" }, "icon": "note" }
       ],
       "panels": [{ "id": "desk", "title": { "zh": "小黑盒创作台", "en": "Heybox desk" }, "icon": "write", "placement": ["session.tab", "features", "chat.panel"] }]
     }

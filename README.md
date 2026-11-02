@@ -9,6 +9,8 @@ WebUI 的「自动完成」把选题、读取资料、写稿、检查和保存�
 
 DSH Go 手机原生入口见 [手机适配说明](integrations/dsh-go/README.md)：输入框胶囊启动成稿，原生面板查看进度与正文。
 
+个人编辑部的 [实施方案与当前边界](docs/editorial-roadmap.md) 包含专题资料追踪、手机随记、内容增量记忆、验证记录、发布反馈和任务控制。WebUI 顶部「专题素材」可直接开始收集。
+
 ```
 xhh publish --md 稿子.md --title "标题" --tag 1 --yes
 ```

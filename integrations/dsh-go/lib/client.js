@@ -36,6 +36,10 @@ export function createClient({ baseURL, fetchImpl = fetch } = {}) {
   }
   return {
     list: signal => request('/api/autopilot', undefined, signal),
+    capture: text => request('/api/desk', { kind: 'note', event: '手机随记', text }),
+    materials: signal => request('/api/desk', undefined, signal),
+    control: (id, action) => request('/api/autopilot', { id, action }),
+    fromMaterial: id => request('/api/autopilot', { material_id: id, profile: 'flexible', publish: false, images: 'auto' }),
     job: (id, signal) => request('/api/autopilot?id=' + encodeURIComponent(id), undefined, signal),
     draft: (file, signal) => request('/api/editorial?file=' + encodeURIComponent(file), undefined, signal),
     start: instruction => request('/api/autopilot', {
