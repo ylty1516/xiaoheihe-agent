@@ -1,319 +1,166 @@
+![xiaoheihe-agent：把精力留给内容](docs/images/project-banner.svg)
+
 # xiaoheihe-agent
 
-> **v0.8.0** · 2026-11-02 · 小黑盒账号自动化（发帖 / 回评论 / 私信 / 逛帖学习 / 本地面板）
+**面向小黑盒的本地创作与自动化工作台。** 从选题、资料、人设到成稿与发布，把重复操作交给工具，把判断留在内容里。
 
-让 AI agent 用**自己的**小黑盒账号发帖、回评论、回私信 —— 像一个真的在用的号，而不是自动回复机器人。
+[![版本 0.8.0](https://img.shields.io/badge/version-0.8.0-80bba5?style=flat-square)](pyproject.toml) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square)](pyproject.toml) [![CI](https://github.com/ylty1516/xiaoheihe-agent/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ylty1516/xiaoheihe-agent/actions/workflows/ci.yml) [![DSH Go 适配器 0.5.0](https://img.shields.io/badge/DSH_Go-0.5.0-80bba5?style=flat-square)](integrations/dsh-go/README.md)
 
-WebUI 的「自动完成」把选题、读取资料、写稿、检查和保存串成后台任务；可选择本篇检查通过后自动发布。
-配图由支持内置生图的插件接续回填，支持恢复中断任务。用法见 [自动成稿](docs/autopilot.md)。
+[效果展示](#效果展示) · [快速安装](#安装) · [开始使用](#使用) · [手机端](#手机端) · [后台自动化](#定时任务) · [文档](#文档)
 
-新建创作默认关注 GitHub 开源项目、软件与 AI 工具，默认发布分区为 **GitHub＋AI**。控制台编辑区点「分区」即可搜索、添加和移除分区，也可设为默认；自动成稿有独立的本次分区选择，旧稿和已创建任务保留自己的分区。详见 [分区设置](docs/publishing-topics.md)。
+新建创作默认关注 **GitHub 开源项目、软件与 AI 工具**，发布分区默认 **GitHub＋AI**；也支持游戏、硬件和按本次要求创作。已有文章可以直接修改，无须走完固定的选题流程。
 
-DSH Go 手机原生入口见 [手机适配说明](integrations/dsh-go/README.md)：输入框胶囊启动成稿，原生面板查看进度与正文。0.4.0适配器支持创作设置、长文分页及指定发布分区；默认GitHub / AI，可与同主机网页控制台共用默认值。
+## 效果展示
 
-Windows支持[后台常驻与每日发帖配置](docs/background.md)：登录自启后端、隐藏运行、故障重试；每日创作由已授权的桌面定时任务接续。
+![工具合集文章在 WebUI 中的真实成稿预览](examples/showcase/game-tools-20261102/screenshots/webui-desktop.jpg)
 
-个人编辑部的 [实施方案与当前边界](docs/editorial-roadmap.md) 包含专题资料追踪、手机随记、内容增量记忆、验证记录、发布反馈和任务控制。WebUI 顶部「专题素材」可直接开始收集。
+**从游戏库到串流：3 个开源工具怎么分工。** 这篇示范稿已实际发布，包含分明的章节、少量 emoji、三张原创人设插画和三张真实官网截图。
 
-本版内置默认人设「白川澪 · 游戏部资料委员」，白发校园形象与视觉方向也随卡保存；自动配图读取同一冻结版本。工具合集参考见 [写法与配图说明](docs/writing-style-tool-roundups.md)。
+[阅读小黑盒帖子](https://xiaoheihe.cn/app/bbs/link/195802469) · [查看完整正文、素材与生成过程](examples/showcase/game-tools-20261102/README.md)
 
-原人设可随时切换；已明确选择的人设在升级时保留。手机端支持选择人设、继续与取消任务，WebUI 优化了窄屏触控、弹窗与保存入口。
+截图来自隔离示例工作区的真实 WebUI，展示同一份发布稿；示范经过 agent 审校。插画是 AI 生成示意，官网截图保留来源，二者不混作实测证据。
 
-文风由 [统一人设卡](docs/personas.md) 管理：兼容 AstrBot 导入导出，支持例文、场景表达、版本回滚和两版试写；WebUI、评论、自动任务与外部 agent 共用同一套加载规则。
+<details>
+<summary>展开手机尺寸预览与分区设置</summary>
 
-```
-xhh publish --md 稿子.md --title "标题" --tag 1 --yes
-```
+<p>
+  <img src="examples/showcase/game-tools-20261102/screenshots/webui-mobile.jpg" alt="WebUI 手机尺寸成稿预览" width="320" />
+  <img src="docs/images/publishing-topics-mobile.jpg" alt="WebUI 手机尺寸发布分区设置" width="300" />
+</p>
 
----
+以上为浏览器窄屏截图；DSH Go 使用独立的原生插件面板，见[手机适配说明](integrations/dsh-go/README.md)。
 
-## 效果
-
-### 新版工具合集示范
-
-[阅读实际发布帖](https://xiaoheihe.cn/app/bbs/link/195802469) · [正文、配图、人设与生成过程](examples/showcase/game-tools-20261102/README.md)
-
-![白川澪工具合集 WebUI 成稿预览](examples/showcase/game-tools-20261102/screenshots/webui-desktop.jpg)
-
-示范稿使用 v0.6.1 的自动成稿、人设配图和发布检查，经过 agent 审校；三张插画围绕各项目改变构图，并配三张真实官网截图；主章节采用二级标题、分隔和少量emoji点缀。
-
-
-用 `xhh publish` 发出来的帖子（App 实拍）：
-
-![帖子效果](docs/images/post.png)
-
-- 标题和话题（PC游戏）自动带上
-- 小标题、加粗正常渲染
-- 图片自动转存到小黑盒图床，不重复
-
-### 本地面板：`heihe auto`
-
-![本地面板](docs/images/webui.png)
-
-一条命令把「现在什么情况」摊开：账号状态、今天发了几篇、下一篇最早几点、待回评论、
-最近写的稿子、逛帖笔记、定时任务日志。页面每 15 秒刷新本机状态，读取状态不会触发账号操作。
-
-背景采用缓慢流动的冷绿色光影、细网格和轻微鼠标光晕。右上角可以关闭背景动效，
-选择会保存在本机，系统开启“减少动画”时自动停用。没有额外动画库或外部素材请求。
-默认写作台只有标题和正文两个输入区，格式、配图、预览、AI 助手通过工具栏操作。
-草稿箱、账号运营、运行日志分开展示，发布检查和模型设置按需打开。
-
-- **草稿**：自动保存、新建、复制、导入/导出 Markdown、回收站与恢复；多窗口版本冲突不会覆盖旧稿。
-- **配图与预览**：上传、拖入或粘贴 PNG/JPG/GIF/WebP，单张最多 8 MB；本地安全预览，外部图不在预览时自动下载。
-- **AI 写作**：按要求生成一份或多份提纲，比较读者任务与证据路径；支持指定篇幅和局部改写，正文参考已发摘录，生成后提示习惯复现，审阅后采用。
-- **账号运营**：扫码登录、账号自检、热搜与话题搜索、评论队列、逐条确认回复、学习原文与 AI 拆解写法卡。
-- **记录**：已发布快照、学习笔记和任务日志，均可在页面查看。
-
-AI 需要可用的兼容接口和 API key。可在“AI 设置”里配置，默认只在本次面板会话中保留；
-勾选保存后，设置写到当前用户的 `~/.xhh-agent/model-*.json`，不写入仓库或产出库。接口不会返回密钥。
-AI 不自动浏览材料中的链接，缺少证据时仍需核实。模型调用只在点击生成或分析时发生。
-保留 `Ctrl + S` 保存、`Ctrl + Enter` 检查；真正发布或回复评论均需明确确认。
-
-**面板里能发帖**，但不是一键群发：
-
-1. 选稿子 → 标题自动填好 → 点「体检」
-2. 体检把规则拆成两级：**拦住**（不符合所选内容规格、选题卡无效或正文完全重复、排期不允许）
-   直接锁死发布按钮；**提醒**（结构撞车、篇幅偏短）必须勾一下「我知道」才放行
-3. 最后弹一个确认框，显示字数和图数，确认才真发
-
-“需要人工”的评论不提供发送入口；结果不明的发送标记为待核对，不自动重试。
-所有账号请求都由显式点击触发，扫码登录只在扫码窗口打开时轮询。
-
-**端口冲突不用你管**：8765 被别的程序占着就自动往后找（最多试 10 个，并告诉你换到了哪个）；
-已经有一个面板在跑就不再起第二个，直接把浏览器指过去。
-
----
-
-## 写作台与内容记忆
-
-选题卡 → 三种提纲 → 写稿 → 内容重复检查 → 发布后快照。面板支持本地编辑、重复段落对照与局部替换，保留原有发布确认。
-
-使用方法、六种文章类型、旧文补录和学习卡见 [写作流程](docs/editorial-workflow.md)。检查器使用文本近似线索，不保证语义新颖或来源正确。
-`py scripts/editorial.py audit` 可查看最近五篇的写法习惯与原文摘录，面板“已发布记录”也可展开查看。
-补录旧文可传 `--published-at` 保留实际时间；写法提醒不因一个正常问句或相似排版拦截发布。
-
-插件按任务组合能力：已有稿件可直接改，只查评论不会顺带回复，本地写稿不用先登录或逛热搜。
-发现选题支持综合热搜、热门游戏、社区热议，页面可见时每 60 秒自动更新，显示采集时间、升降与新入榜。
-讨论可按最新、点赞或评论检索，默认近 24 小时，过期帖会被过滤；带入写作同步当前分区与来源。
-更新失败保留并标注旧结果。数据来自小黑盒取回样本，不冒充全网完整热度；详见 [实时发现选题](docs/discovery.md)。
-AI 与发布弹窗可选 **长文 / 短帖 / 按需**，主编辑区仍只需标题和正文；原有值班继续使用长文规格。
-写作覆盖不同游戏、硬件外设、软件开源项目与 AI 工具；还可选“按本次要求”处理其他普通题材。
-AI 助手可选资讯、教程、评析、盘点、叙事等写法，按需展开设置；新稿不再默认《影之刃零》，非游戏领域不自动附加 PC 游戏区。
-领域与写法随草稿保存，学习卡支持十二类写法；详见 [创作领域与写法](docs/writing-range.md)。
-CLI 与检查脚本共用草稿保存的规格，也支持显式覆盖：
-
-```powershell
-xhh draft --md 草稿.md --title "未完成也可先保存"
-py scripts/check_post.py 短帖.md --profile short
-xhh publish --md 无图稿.md --title "标题" --profile flexible --yes
-```
-
-默认 article 沿用至少 1000 字、3 张图；short/flexible 不强制配图，空稿不能公开。
-新规格不会绕过发布确认、完全重复拦截和账号限制；short 是内容规格，CLI 仍以 article 富文本格式提交。
+</details>
 
 ## 能做什么
 
-| 能力 | 命令 | 说明 |
-|---|---|---|
-| **发帖** | `publish` / `draft` | Markdown → 富文本文章，代码块和表格转图片上传图床 |
-| **回评论** | `poll` → `queue` → `reply` | 只回自己帖子下的评论，每帖最多 5 次 |
-| **私信** | `dm` / `dm --history` | 发消息、看历史 |
-| **逛帖学习** | `study` | 每天挑高质量帖子，存成笔记供分析 |
-| **删除** | `delete` | 删帖子或草稿（hex / 数字 ID 都支持） |
-| **AI 生成回复** | `reply --generate` | 按语气规格和帖子语境生成，过校验才发 |
-| **本地面板** | `auto` | 启动 `127.0.0.1:8765` 的只读面板 + 发帖通道 |
+| 创作环节 | 当前能力 |
+| --- | --- |
+| **发现选题** | 热搜、热门游戏和社区讨论；可见页面每 60 秒刷新，保留采集时间与过期提示，也可直接给自己的资料。 |
+| **一句话成稿** | 后台读取资料、规划角度、生成正文、核对来源并保存；可暂停、继续、取消，重启保留已有进度。 |
+| **统一人设** | 默认「白川澪 · 游戏部资料委员」；文章与评论共用人设规则，支持 AstrBot 导入导出、版本回滚和试写。 |
+| **多样化表达** | 资讯、教程、评析、盘点、叙事等写法；学习卡、旧文摘录和结构对照辅助避开重复套路。 |
+| **配图与排版** | Markdown、章节标题、少量 emoji、真实网站截图；生成图按任务冻结的人设设定接续，不同内容采用不同构图。 |
+| **本地写作台** | 标题和正文两个主要输入区；自动保存、局部改写、预览、导入导出、回收站与冲突保护。 |
+| **检查与发布** | 指定分区、内容规格、重复检查与发布排期；可手动确认发布，也可提前授权单篇任务自动发布。 |
+| **账号与任务** | 扫码登录、评论审核队列、学习笔记；独立 App 授权后支持已适配的签到与每日任务。 |
 
-全是**纯 HTTP**，不需要 Playwright 或浏览器。签名在 Python 里算。
+自动写作需要配置文本模型；社区检索和公开发布需要小黑盒登录。生成插画由具备相应工具的宿主 agent 接续，**独立 WebUI 不内置聊天生图能力**。重复检查提供文本与结构线索，不保证语义新颖或事实正确。
 
 ## 安装
 
-```bash
+需要 **Python 3.11+、Git**。以下为 Windows PowerShell 命令，无需先修改系统 PATH：
+
+```powershell
 git clone https://github.com/ylty1516/xiaoheihe-agent.git
 cd xiaoheihe-agent
-py -m venv .venv && .venv\Scripts\activate     # Windows
-pip install -e ".[dev]"
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\xhh.exe auto
 ```
 
-macOS / Linux 用 `python3 -m venv .venv && source .venv/bin/activate`。
+启动后会打开本机控制台，默认地址 `http://127.0.0.1:8765`。后续使用同一条 `xhh.exe auto` 命令启动；若使用下文简写的 `xhh`，请先激活虚拟环境或替换为上述完整路径。
 
-> **Windows 必须用 `py`**，`python` 是 Microsoft Store 的假 shim，执行后什么都不做也不报错。
+<details>
+<summary>macOS / Linux</summary>
 
-### 装完先让 `heihe` 能直接敲
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-heihe.ps1
+```sh
+git clone https://github.com/ylty1516/xiaoheihe-agent.git
+cd xiaoheihe-agent
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/xhh auto
 ```
 
-这个脚本只改**当前用户**的 PATH（HKCU，不需要管理员），把仓库里的 `bin\` 加进去。
-新开一个 PowerShell 窗口就生效：
-
-```powershell
-heihe auto      # 起面板 + 开浏览器
-heihe doctor    # 四项自检
-```
-
-不想动 PATH 就直接用 `bin\heihe.cmd auto`，效果一样。撤销：`scripts\install-heihe.ps1 -Remove`。
-
-如果用 `pip install -e .` 装成了包，`heihe` 和 `xhh` 两个命令也会自动可用，
-和上面的 PATH 方案二选一就行。
+</details>
 
 ## 使用
 
-### 1. 登录一次
+1. **先开始写。** 本地编辑不需要登录；在「AI 设置」配置兼容接口和模型后，可直接改现稿，或点「自动完成」输入一句要求。已有资料也可直接带入。
+2. **按需要连接账号。** 「账号运营」扫码登录后，可读取社区资料和发布。「分区」可搜索、增删并保存默认值；新任务初始为 GitHub＋AI，已有任务保留自己的选择。
+3. **选择完成方式。** 默认保存本地稿；需要公开发布时手动确认，或在启动单篇任务前勾选自动发布。等待配图的任务由有生图能力的助手接续。
 
-```bash
-xhh login          # 弹出二维码图片，用小黑盒 App 扫一扫
-xhh doctor         # 四项自检，全 OK 才能往下用
-```
+输入要求即可开始；需要精细控制时，按需展开篇幅、写法、人设和图片设置。长文沿用至少 1000 字、3 张图的规格；短帖与按需模式不强制配图。
 
-二维码内容是**给 App 扫的**，不是网页，粘进浏览器会跳到"该功能需要登录使用"。
+[自动成稿与配图](docs/autopilot.md) · [人设卡](docs/personas.md) · [发布分区](docs/publishing-topics.md) · [CLI 命令与排错](docs/cli-guide.md)
 
-### 2. 发帖
+## 手机端
 
-```bash
-xhh draft   --md 稿子.md --title "标题" --tag 1 --html-out preview.html
-xhh publish --md 稿子.md --title "标题" --tag 1 --yes
-```
+**WebUI 窄屏适配**：触控工具栏、弹窗、保存与分区选择随窗口宽度调整，无须在手机上操作桌面大小的表单。
 
-- `--tag` 是话题 ID，**必须是真实存在的**（`1` = PC游戏）。用错会报"错误的帖子类型"
-- `draft` 只进草稿箱，`publish` 才公开
-- `--html-out` 存一份 HTML 便于浏览器预览排版
+**DSH Go 原生适配**：输入框胶囊启动成稿、保存随记；原生面板查看任务和分页正文、切换人设、暂停与继续，还可查看每日任务。适配器 **0.5.0**，对应后端 **0.8.0+**。
 
-### 3. 回评论
+插件与后端需要安装在同一个 DSH 主机；可用手机本机引擎，也可连接在线电脑。首次 App 短信授权在后端所在主机的控制台完成。
 
-```bash
-xhh poll --once                    # 扫自己帖子下的新评论，进队列
-xhh queue list                     # 看队列
-xhh queue show 3                   # 单条详情（含原帖标题、被回复的上文）
-xhh reply --queue-id 3 --text "..." --send
-```
-
-`reply` 默认 dry-run，`--send` 才真发。
-
-### 4. 逛帖学习
-
-```bash
-xhh study --count 2       # 挑 2 篇高质量帖子，存到 notes/study/
-xhh study --list          # 看已记的笔记
-```
-
-笔记里有元数据、正文、7 个待分析问题、原始 JSON。**只读**，不点赞不评论。
-
-## 发什么内容
-
-两个方向轮换（详见 [`voice/content-strategy.md`](voice/content-strategy.md)）：
-
-1. **游戏热点 / 测评** —— 近期发售、折扣、争议、口碑反转，结尾抛一个可讨论的问题
-2. **GitHub 热点项目** —— Trending 上涨星快的，说人话讲清解决什么痛点
-
-要求：带具体数据、多角度、尽量生动、用平台原生表情（[`voice/emoji.md`](voice/emoji.md) 是实测可用的表情表）。
-
-**不谈政治。** 也不碰医疗法律建议、真人评价、价格合理性判断。
+[安装与连接步骤](integrations/dsh-go/README.md)。已通过上游 SDK 加载检查和契约测试，**尚未完成 Android 真机 APK 验收**；上面的手机截图属于 WebUI，不代表原生客户端截图。
 
 ## 定时任务
 
-```
-scripts\install-schedule.bat      注册 Windows 计划任务
-scripts\uninstall-schedule.bat    取消
-```
+| 想自动完成什么 | 运行方式 | 需要保持运行 |
+| --- | --- | --- |
+| **后端常驻** | Windows 登录自启、隐藏运行、异常重试。 | 电脑开机、用户已登录；后端不会阻止系统睡眠。 |
+| **每天一篇 GitHub 帖子** | 由已授权的桌面定时任务接续选题、写作、配图与发布。 | 电脑联网、后端及 Codex 桌面应用运行，可最小化。 |
+| **签到与支持的每日任务** | 首次 App 授权并开启自动执行后，上线与每小时检查，已完成项跳过。 | 后端与 Node.js 24 运行，无须 Codex 常驻。 |
 
-| 时间 | 任务 | 做什么 |
-|---|---|---|
-| 09:00 | `daily-poll` | 扫自己帖子下的新评论，**用模型生成回复草稿**（不发送） |
-| 21:00 | `daily-study` | 挑两篇高质量帖子，存成分析笔记 |
+安装 Windows 后端常驻：
 
-**为什么只生成草稿不自动发**：人不在场时把内容发出去，是最容易造成事故的一步喵。
-草稿留在队列里，你早上 `xhh queue list` 看一眼，确认就 `xhh reply --queue-id N --send`喵。
-
-### 发帖值班：3 篇/日，两小时间隔
-
-发帖是唯一被授权可以自动做的动作，但它有两个闸：
-
-```bash
-py scripts/post_slot.py check      # 0=能发 3=这个点不该发 4=不在作息时间
-py scripts/post_slot.py record --link-id 195437564
-py scripts/post_slot.py status
+```powershell
+powershell -NoProfile -File scripts/background.ps1 -Action Install
 ```
 
-- 每天最多 **3 篇**（`HARD_LIMITS` 里写死）
-- 两篇之间至少 **2 小时**，只在 **09:00–23:00** 发
-- 账本：`.data/post-ledger.json`
-- 交给 agent 的完整流程：[`docs/posting-duty.md`](docs/posting-duty.md)
+每日创作需在宿主另行配置和授权，**克隆仓库不会自动创建每天发帖的任务**。本机已配置的每日额度、时间和账号设置不会作为仓库默认值传播；错过时段不保证补跑。
 
-### 风格不重样
+签到使用独立的 App 登录，网页版扫码会话继续用于发帖。首次安装 App 组件需 **Node.js 24+**：
 
-```bash
-py scripts/style_profile.py compare .data/post-新稿.md
+```sh
+npm ci --ignore-scripts --no-audit --no-fund --prefix integrations/heybox-app
+npm run build --prefix integrations/heybox-app
 ```
 
-把稿子拆成 8 项结构指纹（开头类型、小标题个数/形态/字数、段落节奏、
-首屏是否配图、收尾方式、篇幅档位），和最近三篇对比，撞 4 项以上就报错。
-写法卡和已写角度都在 [`docs/style-ledger.md`](docs/style-ledger.md)。
+然后在「账号运营 → 每日任务 → 连接 App 账号」完成本机短信授权，再开启自动执行。
 
-## 三条硬约束（写在代码里）
+**2026-11-03 真实账号验证**：平台回读确认 App 的签到、帖子分享、游戏详情分享、游戏评价分享四项完成。分享采用 App 流程事件上报，不发送微信或 QQ 消息；网页版「评论分享」任务 11 仍未适配，不能算作完成，也不保证所有账号任务相同。
 
-1. **幂等优先** —— 同一条消息绝不回两次。宁可漏回，不可重发
-2. **不批量** —— 频率上限写死在 `HARD_LIMITS`，环境变量只能调低不能调高
-3. **不编造经历 / 不否认 AI** —— 不写"我上周打了 40 小时"这类 AI 无从知晓的事；被直接问到必须承认
+<details>
+<summary>查看 App 平台回读的完成状态</summary>
 
-「像真人」是**说话方式**的追求，不是**冒充真人经历**。这两条不能为了像而让步。
+![App 四项任务的平台确认结果](docs/images/app-daily-verified.jpg)
 
-## 状态
+</details>
 
-| 阶段 | 内容 | 状态 |
-|---|---|---|
-| P0 | 登录 / 自检 / 只读拉消息 | ✅ 真机验收 |
-| P1 | 发帖：排版转换、图床上传、草稿/发布 | ✅ 真机验收 |
-| P2 | 回评论：幂等、闸门、三道决策门、队列 | ✅ 真机验收 |
-| P3 | 私信：发送、历史 | ✅ 真机验收 |
-| P3+ | AI 生成回复层 | ✅ 代码完成，等可用的模型 key |
-| P3+ | 私信自动回复 | 未做 |
-| P4 | 本地面板（只读）+ 发帖排期手卫 | ✅ 代码完成，247 条测试通过 |
+[后台常驻与每日发帖](docs/background.md) · [App 授权、任务范围与恢复](docs/daily-tasks.md)
 
-## 版本
+## 版本与验证
 
-| 版本 | 日期 | 变更 |
-|---|---|---|
-| **0.5.0** | 2026-10-30 | `heihe auto` 本地面板、发帖排期手卫、风格撞车检查 |
-| 0.4.0 | 2026-10-28 | AI 生成回复（含 C4 校验闸门） |
-| 0.3.0 | 2026-10-28 | 发帖（article/dynamic 双模式）、删除、逛帖学习、私信历史 |
-| 0.2.0 | 2026-10-28 | 回评论闭环：幂等表、频率闸门、决策门、队列 |
-| 0.1.0 | 2026-10-28 | P0 协议层：登录、自检、只读消息 |
+| 版本 | 本轮重点 |
+| --- | --- |
+| **0.8.0** | 本机 App 短信授权、签到与已适配每日任务、后台执行；DSH Go 适配器更新至 0.5.0。 |
+| **0.7.0** | 默认 GitHub / AI 创作与双分区；网页和手机端搜索、选择并保存发布分区。 |
+| **0.6.1** | 原创白川澪视觉设定，任务冻结人设并编译配图提示词；公开成稿示范。 |
+| **0.6.0** | 统一版本化人设卡、默认人设、手机任务控制与窄屏优化。 |
 
-## 风险
+代码验证覆盖 Python、App 原生签名与任务流程、DSH Go 面板与 SDK 加载；最新结果见 [GitHub Actions](https://github.com/ylty1516/xiaoheihe-agent/actions/workflows/ci.yml)。真实发布示范与 App 单账号回读验证分别列在上文，不将离线测试当作全平台实测。
 
-使用非公开接口，**违反平台用户协议的可能性很高**。可能被限流、禁言、封禁。
+## 使用边界
 
-Cookie 等价于账号密码，只存在 `.data/session.json`（0600），不进日志、不进命令行、不入库。
+使用非公开接口，可能遇到接口变更、验证或账号限制。账号凭据保存在本机，网页版与 App 会话分开存放；不要提交 `.data/`、模型密钥或验证码。
 
-如果这是你的主号且不能承受损失，只建议用 `draft` 能力，发布自己点。
+公开操作遵循既有授权与频率限制。结果不明时先核对，不自动重发；缺少资料、图片工具不可用或检查未通过时保留稿件，不伪造完成。人设用于表达与视觉统一，不编造真人经历；被直接询问时不否认 AI 身份。
 
 ## 文档
 
-- 设计规格：[`docs/superpowers/specs/`](docs/superpowers/specs/)
-- 实现计划：[`docs/superpowers/plans/`](docs/superpowers/plans/)
-- agent 使用说明：[`skills/xiaoheihe-heybox/SKILL.md`](skills/xiaoheihe-heybox/SKILL.md)
-- 发帖值班手册：[`docs/posting-duty.md`](docs/posting-duty.md)
-- 写法卡（风格不重样）：[`docs/style-ledger.md`](docs/style-ledger.md)
+| 我想了解 | 去哪里 |
+| --- | --- |
+| 安装、常用命令、迁移与排错 | [CLI 使用指南](docs/cli-guide.md) |
+| 自动成稿与配图接续 | [自动成稿](docs/autopilot.md) |
+| 人设、视觉设定与 AstrBot 交换 | [统一人设卡](docs/personas.md) |
+| 分区选择与默认值 | [发布分区](docs/publishing-topics.md) |
+| 旧文记忆、局部修改与学习卡 | [写作流程](docs/editorial-workflow.md) |
+| 选题热榜与创作范围 | [实时发现](docs/discovery.md) · [领域与写法](docs/writing-range.md) |
+| 手机原生插件 | [DSH Go 适配](integrations/dsh-go/README.md) |
+| 后台运行、签到与每日任务 | [后台常驻](docs/background.md) · [App 每日任务](docs/daily-tasks.md) |
+| 示范正文与图片出处 | [已发布案例](examples/showcase/game-tools-20261102/README.md) · [工具合集写法](docs/writing-style-tool-roundups.md) |
+| 后续方向与当前边界 | [个人编辑部实施方案](docs/editorial-roadmap.md) |
+| 接入其他 agent 与维护旧工作流 | [Agent 使用说明](skills/xiaoheihe-heybox/SKILL.md) · [发帖值班](docs/posting-duty.md) · [风格记录](docs/style-ledger.md) |
 
-## 排错：定时任务起不来
-
-报 `Background children require the host npm package` 或
-`does not provide @earendil-works/chord`，是 pi 的全局安装缺一个可选依赖
-（pi 自己的 `dependencies` 里没写它）。补上同版本的就行：
-
-```powershell
-npm i -g @earendil-works/chord@1.4.0    # 版本跟 pi-coding-agent 对齐
-```
-
-报 `Unknown subagent model 'xxx/yyy'`，是模型 id 过期（provider 改名了）。
-`scripts/duty-workflow.js` 里已经把模型钉死成 `deepseek/deepseek-flash`，
-要换就改那一行，改完用 `py -m xhh_agent.cli.main ...` 之外的方式验证一次：
-手动 `schedule.run` 触发，看它是不是真发出来了。
-
-**子进程里的 provider 认证和 CLI 不一定一致。** 实测 `pi auth check --provider commandcode`
-返回 ready，但后台子进程里请求 401（`Invalid Authorization header`）。所以
-`scripts/duty-workflow.js` 的降级链只保留 `deepseek/*` 两个模型，别把没在子进程里跑通过的
-provider 加进去——加了只会多两次失败。
-
-v0.8.0支持[本机App短信登录、签到与每日任务执行](docs/daily-tasks.md)：首次连接后后台按授权接续，只有平台确认才标记完成；部分任务类型仍需按账号验证。DSH Go 0.5.0可在创作设置中查看与控制。
+开发验证：`python -m pip install -e ".[dev]"` 后运行 `python -m pytest -q`；手机插件和 App 组件的检查命令见各自目录。设计与实现记录保存在 [规格](docs/superpowers/specs/) 和 [计划](docs/superpowers/plans/) 中。

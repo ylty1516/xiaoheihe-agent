@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 
 # 版本给上下界：下界是验证过能用的最低版本，上界防止未来大版本破坏行为。
-# 实际验证通过的版本见 README「迁移到新机器」一节。
+# 环境要求和迁移说明见 docs/cli-guide.md「迁移到新机器」一节。
 dependencies = [
     "aiohttp>=3.9,<4",
     "markdown>=3.5,<4",

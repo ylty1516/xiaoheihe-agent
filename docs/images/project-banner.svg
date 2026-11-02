@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="350" viewBox="0 0 1200 350" role="img" aria-labelledby="title desc">
+  <title id="title">xiaoheihe-agent · 把精力留给内容。</title>
+  <desc id="desc">深绿色背景的小黑盒创作工作台介绍。从选题、资料、写作、检查到发布。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#162e2b"/><stop offset="1" stop-color="#0a1518"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#86c6ac" stop-opacity=".18"/><stop offset="1" stop-color="#86c6ac" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#a3cdbb" stroke-opacity=".04"/></pattern>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#223c39"/><stop offset="1" stop-color="#122528"/></linearGradient>
+  </defs>
+  <rect width="1200" height="350" rx="22" fill="url(#bg)"/>
+  <rect width="1200" height="350" rx="22" fill="url(#grid)"/>
+  <ellipse cx="970" cy="120" rx="310" ry="280" fill="url(#glow)"/>
+  <g font-family="'Microsoft YaHei','Noto Sans CJK SC','PingFang SC',sans-serif">
+    <circle cx="59" cy="58" r="5" fill="#a8d8bd"/>
+    <text x="77" y="64" font-size="16" font-weight="600" letter-spacing="3" fill="#b3d0c6">XIAOHEIHE AGENT</text>
+    <text x="52" y="153" font-size="62" font-weight="700" letter-spacing="1" fill="#f0f5ef">把精力留给内容。</text>
+    <text x="55" y="201" font-size="25" fill="#b5c7bf">从一个选题，到一篇有自己语气的帖子。</text>
+    <g font-size="19" fill="#c6ddd2" text-anchor="middle">
+      <rect x="55" y="251" width="83" height="39" rx="19" fill="#24433c"/><text x="96" y="277">选题</text>
+      <path d="M151 270h21m-5-5 5 5-5 5" fill="none" stroke="#678f80" stroke-width="1.5"/>
+      <text x="214" y="277">资料</text>
+      <path d="M256 270h21m-5-5 5 5-5 5" fill="none" stroke="#678f80" stroke-width="1.5"/>
+      <text x="319" y="277">写作</text>
+      <path d="M361 270h21m-5-5 5 5-5 5" fill="none" stroke="#678f80" stroke-width="1.5"/>
+      <text x="424" y="277">检查</text>
+      <path d="M466 270h21m-5-5 5 5-5 5" fill="none" stroke="#678f80" stroke-width="1.5"/>
+      <text x="529" y="277">发布</text>
+    </g>
+  </g>
+  <g transform="translate(887 57) rotate(7 100 115)">
+    <rect x="20" y="12" width="186" height="231" rx="16" fill="#080f12" opacity=".22"/>
+    <rect width="186" height="231" rx="16" fill="url(#paper)" stroke="#476d5d"/>
+    <path d="M30 44h75" stroke="#bcddc9" stroke-width="7" stroke-linecap="round"/>
+    <path d="M30 69h121M30 91h100" stroke="#618e7b" stroke-width="4" stroke-linecap="round"/>
+    <rect x="29" y="118" width="128" height="64" rx="8" fill="#395c50"/>
+    <path d="m40 169 26-27 20 16 21-28 39 39" fill="none" stroke="#9bc1ab" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="53" cy="136" r="5" fill="#d0dfb4"/>
+    <path d="M30 204h62" stroke="#618e7b" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(1061 218)">
+    <circle r="31" fill="#acd7bd"/>
+    <path d="m-12 0 8 8 17-18" fill="none" stroke="#19392f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <path d="M795 293h324" stroke="#77a68c" stroke-opacity=".22"/>
+</svg>
