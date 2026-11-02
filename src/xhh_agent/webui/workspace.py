@@ -23,6 +23,8 @@ from .operations import Operations
 from .publishing import list_drafts
 from .writer import Writer
 from .autopilot import Autopilot
+from .research import fetch_sources
+from .experiments import execute
 
 
 def install_workspace_routes(app, root, cfg):
@@ -155,18 +157,68 @@ def install_workspace_routes(app, root, cfg):
     async def jobs(request):
         if request.method == "GET":
             job_id = request.query.get("id")
-            return web.json_response({"ok": True, **(
-                {"job": autopilot.read(job_id)} if job_id else {"items": autopilot.list()}
-            )})
+            return web.json_response(
+                {
+                    "ok": True,
+                    **({"job": autopilot.read(job_id)} if job_id else {"items": autopilot.list()}),
+                }
+            )
         data = await body(request)
         if data.get("action", "start") == "start":
             job = autopilot.create(data)
         elif data.get("action") == "resume":
             job = autopilot.read(data.get("id"))
+            if job["state"] in {"published", "publishing", "cancelled", "uncertain", "skipped"}:
+                raise ValueError("任务已结束或结果待核对，不能重复继续")
+            for key, upper in (("max_model_calls", 30), ("max_seconds", 1800)):
+                if key in data:
+                    if type(data[key]) is not int or not 1 <= data[key] <= upper:
+                        raise ValueError("追加预算超出范围")
+                    job[key] = data[key]
+            if job.get("control") == "pause":
+                job.pop("control", None)
+            autopilot.update(job, job["state"], "按用户要求继续")
+        elif data.get("action") in {"pause", "cancel"}:
+            job = await autopilot.control(data.get("id"), data["action"])
+            return web.json_response({"ok": True, "job": job})
+        elif data.get("action") == "feedback":
+            return web.json_response({"ok": True, "card": await autopilot.feedback(data.get("id"))})
         else:
             raise ValueError("不支持的自动任务操作")
         autopilot.launch(job["id"])
         return web.json_response({"ok": True, "job": job})
+
+    @route
+    async def desk(request):
+        if request.method == "GET":
+            event = request.query.get("event", "")
+            if event:
+                return web.json_response({"ok": True, "items": autopilot.desk.context(event)})
+            return web.json_response({"ok": True, **autopilot.desk.overview()})
+        data = await body(request)
+        if data.get("action") == "experiment":
+            result = await execute(root, data.get("recipe"))
+            return web.json_response(
+                {
+                    "ok": True,
+                    "card": autopilot.desk.put(
+                        {**result, "event": data.get("event") or "环境验证"}
+                    ),
+                }
+            )
+        if data.get("action") == "fetch":
+            sources = await fetch_sources(data.get("provider"), data.get("key"))
+            cards = [
+                autopilot.desk.put({**source, "event": data.get("event") or data.get("key")})
+                for source in sources
+            ]
+            return web.json_response({"ok": True, "items": cards})
+        if data.get("kind") in {"article", "feedback", "image"}:
+            raise ValueError("这类记录由实际任务写入")
+        card = autopilot.desk.put(
+            {**data, "provenance": "user_provided", "verification": "用户提供的材料，未独立验证"}
+        )
+        return web.json_response({"ok": True, "card": card})
 
     @route
     async def queue(_):
@@ -224,6 +276,8 @@ def install_workspace_routes(app, root, cfg):
     app.router.add_post("/api/model", model)
     app.router.add_post("/api/generate", generate)
     app.router.add_get("/api/autopilot", jobs)
+    app.router.add_get("/api/desk", desk)
+    app.router.add_post("/api/desk", desk)
     app.router.add_post("/api/autopilot", jobs)
     app.router.add_get("/api/comments", queue)
     app.router.add_post("/api/operate", operate)
