@@ -41,13 +41,21 @@ export function createClient({ baseURL, fetchImpl = fetch } = {}) {
     persona: signal => request('/api/personas?summary=1', undefined, signal),
     personas: signal => request('/api/personas?list=1', undefined, signal),
     activatePersona: id => request('/api/personas', { action: 'activate', id }),
+    preferences: signal => request('/api/authoring-settings', undefined, signal),
+    savePreferences: topics => request('/api/authoring-settings', { topics }),
+    findTopics: query => request('/api/operate', { action: 'find_topics', query }),
     control: (id, action) => request('/api/autopilot', { id, action }),
-    fromMaterial: id => request('/api/autopilot', { material_id: id, profile: 'flexible', publish: false, images: 'auto' }),
+    fromMaterial: (id, options = {}) => request('/api/autopilot', {
+      material_id: id, subject: options.subject ?? 'auto', profile: options.profile ?? 'flexible',
+      publish: false, confirm: false, images: options.images ?? 'auto',
+      ...(options.topics ? { topics: options.topics.slice() } : {}),
+    }),
     job: (id, signal) => request('/api/autopilot?id=' + encodeURIComponent(id), undefined, signal),
     draft: (file, signal) => request('/api/editorial?file=' + encodeURIComponent(file), undefined, signal),
-    start: instruction => request('/api/autopilot', {
-      action: 'start', instruction, subject: 'auto', genre: 'auto', profile: 'flexible',
-      images: 'auto', publish: false, confirm: false,
+    start: (instruction, options = {}) => request('/api/autopilot', {
+      action: 'start', instruction, subject: options.subject ?? 'auto', genre: 'auto', profile: options.profile ?? 'flexible',
+      images: options.images ?? 'auto', publish: false, confirm: false,
+      ...(options.topics ? { topics: options.topics.slice() } : {}),
     }),
   }
 }

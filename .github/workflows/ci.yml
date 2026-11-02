@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ccch1mneyyy/dsh-Go
-          ref: d44f9607b69bc284a733e554805f283b30471e7a
+          ref: e68525951f98d250768ee5b1c7b0eb4a83ef6140
           path: .dsh-go-sdk
           sparse-checkout: sdk/plugin-kit
       - uses: actions/setup-node@v4
@@ -54,3 +54,7 @@ jobs:
           node-version: "22"
       - name: 官方原生插件加载检查
         run: node .dsh-go-sdk/sdk/plugin-kit/bin/check.mjs integrations/dsh-go --load
+      - name: 手机原生视图和真实数据预算
+        run: node --test integrations/dsh-go/test/*.test.js
+        env:
+          DSH_GO_SDK: ${{ github.workspace }}/.dsh-go-sdk/sdk/plugin-kit

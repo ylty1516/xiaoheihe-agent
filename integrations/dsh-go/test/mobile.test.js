@@ -1,16 +1,194 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { endpoint, createClient } from '../lib/client.js'
-import { install } from '../lib/index.js'
+import { install, deskView, settingsView } from '../lib/index.js'
+import { pages, controls } from '../lib/presentation.js'
 import { createServer } from 'node:http'
+import { pathToFileURL } from 'node:url'
 
 function host(client) {
   const handlers = {}, panels = {}
   install({ dshGo: { on: (id, fn) => { handlers[id] = fn }, panel: (id, spec) => { panels[id] = spec } } }, client)
-  return { handlers, panel: panels.desk, personas: panels.personas }
+  return { handlers, panel: panels.desk, personas: panels.personas, settings: panels.settings }
 }
 const id = 'a'.repeat(32)
 const scope = { sessionId: 'mobile-session', draft: '写一篇软件教程' }
+
+async function snapshot(panel, context = scope) {
+  let close
+  const data = await new Promise(resolve => { close = panel.data(context, resolve) })
+  close()
+  return data
+}
+
+test('long Chinese drafts can be read and copied completely across pages', async () => {
+  const markdown = '长文测试😀'.repeat(1700)
+  const { panel } = host({ list: async () => ({ items: [{id, file:'long.md'}] }),
+    draft: async () => ({title:'长文', markdown}) })
+  let data = await snapshot(panel), combined = '', total = pages('长文\n\n' + markdown).length
+  for (let i = 0; i < total; i++) {
+    assert.ok(data.preview.length <= 1800)
+    assert.equal(panel.actions['copy-page'](scope).copy, data.preview)
+    combined += data.preview
+    panel.actions['next-page'](scope)
+    data = await snapshot(panel)
+  }
+  assert.equal(combined, '长文\n\n' + markdown)
+  assert.match(panel.actions['copy-draft'](scope).toast, /翻页/)
+  assert.match(data.previewPage, new RegExp(`${total} / ${total}`))
+})
+
+test('Chinese drafts within the native character budget copy in full', async () => {
+  const markdown = '中'.repeat(7999)
+  const { panel } = host({list:async()=>({items:[{id,file:'draft.md'}]}),draft:async()=>({markdown})})
+  await snapshot(panel)
+  assert.equal(panel.actions['copy-draft'](scope).copy, markdown)
+})
+
+test('task groups include all recent rows and retain an older selected task', async () => {
+  let rows = Array.from({length:20},(_,i)=>({id:i.toString(16).padStart(32,'0'),title:'任务'+i}))
+  const {panel} = host({list:async()=>({items:rows}),job:async selected=>({job:{id:selected,title:'旧任务',state:'ready',file:'old.md'}}),draft:async()=>({markdown:'旧任务正文'})})
+  await snapshot(panel)
+  panel.actions['next-jobs'](scope)
+  let data = await snapshot(panel)
+  assert.equal(data.items[0].title, '任务8')
+  panel.actions['select-job'](scope,{value:{id:rows[9].id}})
+  rows = [] // The selected task fell outside the backend's most recent 20.
+  data = await snapshot(panel)
+  assert.match(data.preview,/旧任务正文/)
+  assert.match(data.selected,/旧任务.*成稿已保存/)
+})
+
+test('optional materials and personas failing cannot hide task progress', async () => {
+  const {panel}=host({list:async()=>({items:[{id,file:'draft.md',message:null}]}),
+    draft:async()=>({markdown:'正文仍可读'}),materials:async()=>{throw new Error('secret')},persona:async()=>{throw new Error('404')}})
+  const data=await snapshot(panel)
+  assert.match(data.status,/素材暂时/)
+  assert.doesNotMatch(data.status,/未连接|secret/)
+  assert.equal(data.preview,'正文仍可读')
+})
+
+test('a task losing its draft cannot copy stale text', async () => {
+  let file='draft.md'
+  const {panel}=host({list:async()=>({items:[{id,file}]}),draft:async()=>({markdown:'旧正文'})})
+  await snapshot(panel)
+  file=null
+  const data=await snapshot(panel)
+  assert.equal(data.preview,'')
+  assert.match(panel.actions['copy-draft'](scope).toast,/没有/)
+})
+
+test('disconnect clears copy state and automatic polling reconnects to the selected task', async t => {
+  t.mock.timers.enable({apis:['setTimeout']})
+  let connected=true,notify
+  const {panel}=host({list:async()=>{if(!connected)throw new Error('offline');return {items:[{id,file:'draft.md'}]}},
+    draft:async()=>({markdown:'恢复正文'})})
+  await snapshot(panel)
+  connected=false
+  let next=new Promise(resolve=>{notify=resolve})
+  const close=panel.data(scope,data=>notify(data))
+  try{
+    const offline=await next
+    assert.match(offline.status,/未连接/)
+    assert.match(panel.actions['copy-draft'](scope).toast,/没有/)
+    connected=true
+    next=new Promise(resolve=>{notify=resolve})
+    t.mock.timers.tick(4000)
+    const online=await next
+    assert.equal(online.preview,'恢复正文')
+    assert.ok(panel.actions['continue-agent'](scope).insert.includes(id))
+  }finally{close()}
+})
+
+test('closing the desk aborts its request and suppresses late data', async()=>{
+  let finish,signal,emitted=false
+  const {panel}=host({list:s=>{signal=s;return new Promise(resolve=>{finish=resolve})}})
+  const close=panel.data(scope,()=>{emitted=true})
+  close();finish({items:[]})
+  await new Promise(resolve=>setImmediate(resolve))
+  assert.equal(signal.aborted,true)
+  assert.equal(emitted,false)
+})
+
+test('late draft response cannot overwrite a newly selected task', async () => {
+  let finish, started
+  const ready=new Promise(resolve=>{started=resolve})
+  const {panel}=host({list:async()=>({items:[{id,file:'old.md'}]}),draft:()=>{started();return new Promise(resolve=>{finish=resolve})}})
+  let emitted=false
+  const close=panel.data(scope,()=>{emitted=true})
+  await ready
+  panel.actions['select-job'](scope,{value:{id:'b'.repeat(32)}})
+  finish({markdown:'过期结果'})
+  await new Promise(resolve=>setImmediate(resolve))
+  close()
+  assert.equal(emitted,false)
+  assert.match(panel.actions['copy-draft'](scope).toast,/没有/)
+})
+
+test('a failed draft read leaves progress and check warnings visible', async () => {
+  const {panel}=host({list:async()=>({items:[{id}]}),job:async()=>({job:{id,file:'lost.md',state:'awaiting_images',issues:['需核对资料'],check:{warnings:['引用不足']}}}),draft:async()=>{throw new Error('missing')}})
+  const data=await snapshot(panel)
+  assert.match(data.selected,/等待配图/)
+  assert.match(data.detail,/交给助手.*\n需核对资料\n引用不足/)
+  assert.match(data.status,/正文暂时/)
+  assert.doesNotMatch(data.status,/未连接/)
+})
+
+test('material and composer taps share the task creation guard', async () => {
+  let finish,calls=0
+  const {panel,handlers}=host({fromMaterial:()=>{calls++;return new Promise(resolve=>{finish=resolve})},start:()=>{calls++}})
+  const first=panel.actions['use-material'](scope,{value:{id}})
+  assert.match((await panel.actions['use-material'](scope,{value:{id}})).toast,/正在启动/)
+  assert.match((await handlers['write-post'](scope)).toast,/正在启动/)
+  finish({job:{id}});await first
+  assert.equal(calls,1)
+})
+
+test('controls reflect backend task states and pagination preserves surrogate pairs',()=>{
+  for(const state of ['published','publishing','uncertain','cancelled','skipped'])assert.deepEqual(controls({state}),[])
+  assert.equal(controls({state:'writing'})[0].action,'pause-job')
+  assert.equal(controls({state:'user_paused'})[0].action,'resume-job')
+  const text='a'.repeat(1799)+'😀结束'
+  const result=pages(text)
+  assert.equal(result.join(''),text)
+  assert.equal(result[0].length,1799)
+})
+
+test('populated phone views pass the actual DSH SDK without truncation', {skip:!process.env.DSH_GO_SDK}, async()=>{
+  const {checkView}=await import(pathToFileURL(process.env.DSH_GO_SDK+'/lib/check.js').href)
+  const {panel}=host({list:async()=>({items:Array.from({length:20},(_,i)=>({id:i.toString(16).padStart(32,'0'),title:'标题'.repeat(100),message:'进度'.repeat(100)}))}),
+    job:async()=>({job:{id,state:'review',file:'long.md',title:'标题'.repeat(100),issues:['检查'.repeat(2000)]}}),
+    draft:async()=>({title:'长文',markdown:'正文😀'.repeat(9000)}),
+    materials:async()=>({items:Array.from({length:5},()=>({id,kind:'note',event:'素材'.repeat(200),text:'资料'.repeat(200)}))})})
+  const data=await snapshot(panel)
+  assert.ok(Buffer.byteLength(JSON.stringify(data))<=32768)
+  for(const lang of ['zh','en']){
+    const checked=checkView(deskView,{budget:'panel',data,lang})
+    assert.equal(checked.ok,true,JSON.stringify(checked.issues))
+    assert.deepEqual(checked.issues,[])
+    assert.equal(checked.truncated,0)
+  }
+  const checked=checkView(settingsView,{budget:'panel',data:{profile:'short',images:'none',subject:'software'}})
+  assert.deepEqual(checked.issues,[])
+})
+
+test('native writing settings reach both creation paths and remain session scoped', async()=>{
+  const calls=[]
+  const client=createClient({fetchImpl:async(url,options)=>{calls.push(JSON.parse(options.body));return Response.json({ok:true,job:{id}})}})
+  const {settings,handlers,panel}=host(client)
+  for(const [key,value] of Object.entries({profile:'short',images:'none',subject:'software'})){
+    assert.equal(settings.actions['set-'+key](scope,{value:{value}}).refresh,true)
+  }
+  assert.match(settings.actions['set-images'](scope,{value:{value:'invalid'}}).toast,/无效/)
+  await handlers['write-post'](scope)
+  await panel.actions['use-material'](scope,{value:{id}})
+  await handlers['write-post']({sessionId:'other',draft:'另一篇'})
+  for(const body of calls.slice(0,2)){
+    assert.equal(body.profile,'short');assert.equal(body.images,'none');assert.equal(body.subject,'software')
+    assert.equal(body.publish,false);assert.equal(body.confirm,false)
+  }
+  assert.equal(calls[2].profile,'flexible');assert.equal(calls[2].images,'auto')
+})
 
 test('only host-local endpoints are permitted', () => {
   assert.equal(endpoint('http://127.0.0.1:9876'), 'http://127.0.0.1:9876')
