@@ -1,0 +1,28 @@
+{
+  "source_url": "https://xiaoheihe.cn/app/bbs/link/195789504",
+  "resolved_from_share_id": "cf0772c1359d",
+  "observed_on": "2026-11-02",
+  "scope": "presentation_only",
+  "use_for_prose_style": false,
+  "observations": {
+    "project_images": "已查看前两个项目图，集中展示仓库名称、简介和资料，带参考作者的头像角标；仅学习信息区域的选取，不复制该角标。",
+    "image_position": "项目标题之后紧接项目图，图片后是紧凑资料行。",
+    "emoji_position": "资料行与提示标签旁使用emoji作为视觉路标；不照搬原帖密度和固定栏目。"
+  },
+  "preserve": [
+    "当前人设卡与原有正文语气",
+    "已有事实判断、句式与叙述节奏",
+    "用户认可的正文内容"
+  ],
+  "change_only_when_requested": [
+    "补充有来源的真实项目资料图",
+    "少量emoji点缀",
+    "必要的标题、分隔与留白"
+  ],
+  "do_not_import": [
+    "参考帖正文措辞与叙述语气",
+    "固定的适合、门槛、不适合栏目",
+    "未独立核对的项目结论、数字与经历",
+    "原作者头像、角标及其他角色形象"
+  ]
+}
